@@ -72,7 +72,8 @@ const MainApp = ({ isGoogleLoaded }) => {
         autocompleteService.getPlacePredictions(
           {
             input: inputValue,
-            componentRestrictions: { country: 'ca' }
+            componentRestrictions: { country: 'ca' },
+            types: ['address']
           },
           (predictions, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
@@ -93,11 +94,13 @@ const MainApp = ({ isGoogleLoaded }) => {
                       mapRef.current.setZoom(22);
                     }
                   } else {
+                    console.error('Failed to fetch place details:', detailStatus);
                     alert('Unable to fetch address details. Please select from suggestions.');
                   }
                 }
               );
             } else {
+              console.error('No predictions found:', status);
               alert('No suggestions found for this address. Please try again.');
             }
           }
@@ -317,4 +320,3 @@ const App = () => {
 };
 
 export default App;
-
