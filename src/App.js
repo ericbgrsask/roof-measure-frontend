@@ -187,10 +187,12 @@ const MainApp = ({ isGoogleLoaded }) => {
         withCredentials: true
       });
       const freshCsrfToken = response.data.csrfToken;
+      console.log('Sending CSRF token for logout:', freshCsrfToken);
       await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
         withCredentials: true,
         headers: {
-          'CSRF-Token': freshCsrfToken
+          'CSRF-Token': freshCsrfToken,
+          'X-CSRF-Token': freshCsrfToken // Add this header as well for compatibility
         }
       });
       navigate('/login');
