@@ -25,6 +25,7 @@ const MainApp = () => {
   const [address, setAddress] = useState('');
   const [center, setCenter] = useState(initialCenter);
   const [csrfToken, setCsrfToken] = useState(null);
+  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
@@ -44,7 +45,7 @@ const MainApp = () => {
 
     fetchCsrfToken();
 
-    if (autocompleteRef.current) {
+    if (isGoogleLoaded && autocompleteRef.current) {
       autocompleteRef.current.addEventListener('gmp-placeselect', (event) => {
         const place = event.place;
         if (place && place.geometry && place.geometry.location) {
@@ -60,7 +61,7 @@ const MainApp = () => {
         }
       });
     }
-  }, []);
+  }, [isGoogleLoaded]);
 
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
@@ -176,7 +177,6 @@ const MainApp = () => {
         <gmp-place-autocomplete
           ref={autocompleteRef}
           style={{ width: '300px', marginLeft: '10px', border: '1px solid #ccc', padding: '5px' }}
-          types="address"
           component-restrictions='{"country":"ca"}'
         >
           <input
@@ -243,6 +243,7 @@ const App = () => {
     <LoadScript
       googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
       libraries={GOOGLE_MAPS_LIBRARIES}
+      onLoad={() => setIsGoogleLoaded(true)}
     >
       <Router>
         <Routes>
