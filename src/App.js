@@ -6,6 +6,9 @@ import html2canvas from 'html2canvas';
 import Login from './Login';
 import ProtectedRoute from './ProtectedRoute';
 
+// Define libraries as a constant outside the component
+const GOOGLE_MAPS_LIBRARIES = ["geometry"];
+
 const containerStyle = {
   width: '800px',
   height: '600px',
@@ -19,6 +22,7 @@ const center = {
 const MainApp = () => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
+  const [address, setAddress] = useState(''); // State for project address
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -44,12 +48,16 @@ const MainApp = () => {
   };
 
   const saveProject = async () => {
+    if (!address) {
+      alert('Please enter a project address.');
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
         'https://roof-measure-backend.onrender.com/projects',
         {
-          address: '123 Main St',
+          address: address, // Use the dynamic address
           polygons,
         },
         {
@@ -64,11 +72,15 @@ const MainApp = () => {
   };
 
   const generatePDF = async () => {
+    if (!address) {
+      alert('Please enter a project address.');
+      return;
+    }
     try {
       const canvas = await html2canvas(mapContainerRef.current);
       const screenshot = canvas.toDataURL('image/png');
       const pdfData = {
-        address: '123 Main St',
+        address: address, // Use the dynamic address
         screenshot,
         polygons,
         areas: polygons.map((poly, index) => ({
@@ -106,8 +118,19 @@ const MainApp = () => {
         <h1>Saskatoon Roof Measure</h1>
         <button onClick={handleLogout}>Logout</button>
       </div>
+      <div style={{ padding: '10px' }}>
+        <label htmlFor="address-input">Project Address: </label>
+        <input
+          id="address-input"
+          type="text"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Enter project address"
+          style={{ width: '300px', marginLeft: '10px' }}
+        />
+      </div>
       <div ref={mapContainerRef}>
-        <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY} libraries={["geometry"]}>
+        <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
           <GoogleMap
             mapContainerStyle={containerStyle}
             center={center}
