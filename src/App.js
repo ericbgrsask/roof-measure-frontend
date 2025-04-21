@@ -28,6 +28,7 @@ const MainApp = ({ isGoogleLoaded }) => {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
+  const inputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,37 +63,46 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   }, [isGoogleLoaded]);
 
-  const handleAddressKeyPress = async (event) => {
+  const handleAddressKeyPress = (event) => {
     if (event.key === 'Enter' && isGoogleLoaded) {
       event.preventDefault();
-      const input = document.getElementById('address-input').value;
-      if (input && window.google && window.google.maps) {
+      const inputValue = inputRef.current.value;
+      if (inputValue && window.google && window.google.maps) {
         const service = new window.google.maps.places.PlacesService(mapRef.current);
-        service.findPlaceFromQuery(
-          {
-            query: input,
-            fields: ['formatted_address', 'geometry'],
-            locationBias: { lat: initialCenter.lat, lng: initialCenter.lng }
-          },
-          (results, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-              const place = results[0];
-              if (place.geometry && place.geometry.location) {
-                const location = place.geometry.location;
-                setAddress(place.formatted_address || '');
-                setCenter({ lat: location.lat(), lng: location.lng() });
-                if (mapRef.current) {
-                  mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-                  mapRef.current.setZoom(22);
+        const request = {
+          query: inputValue,
+          fields: ['place_id'],
+          locationBias: { lat: initialCenter.lat, lng: initialCenter.lng }
+        };
+
+        service.findPlaceFromQuery(request, (results, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+            const placeId = results[0].place_id;
+            service.getDetails(
+              {
+                placeId: placeId,
+                fields: ['formatted_address', 'geometry']
+              },
+              (place, detailStatus) => {
+                if (detailStatus === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
+                  const location = place.geometry.location;
+                  setAddress(place.formatted_address || '');
+                  setCenter({ lat: location.lat(), lng: location.lng() });
+                  if (mapRef.current) {
+                    mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                    mapRef.current.setZoom(22);
+                  }
+                } else {
+                  alert('Unable to fetch address details. Please select from suggestions.');
                 }
-              } else {
-                alert('No valid location found for this address.');
               }
-            } else {
-              alert('Address not found. Please try again or select from suggestions.');
-            }
+            );
+          } else {
+            alert('Address not found. Please try again or select from suggestions.');
           }
-        );
+        });
+      } else {
+        alert('Google Maps API not loaded. Please try again.');
       }
     }
   };
@@ -193,8 +203,8 @@ const MainApp = ({ isGoogleLoaded }) => {
       await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
         withCredentials: true,
         headers: {
-          'CSRF-Token': freshCsrfToken,
-          'X-CSRF-Token': freshCsrfToken
+          'X-CSRF-Token': freshCsrfToken,
+          'X-XSRF-Token': freshCsrfToken
         }
       });
       navigate('/login');
@@ -223,6 +233,7 @@ const MainApp = ({ isGoogleLoaded }) => {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             onKeyPress={handleAddressKeyPress}
+            ref={inputRef}
             placeholder="Enter project address"
             style={{ width: '100%', border: 'none', outline: 'none' }}
           />
