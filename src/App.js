@@ -4,6 +4,7 @@ import { GoogleMap, LoadScript, Polygon } from '@react-google-maps/api';
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import Login from './Login';
+import Register from './Register'; // Import the Register component
 import ProtectedRoute from './ProtectedRoute';
 
 const GOOGLE_MAPS_LIBRARIES = ["geometry", "places"];
@@ -46,7 +47,7 @@ const MainApp = () => {
             setCenter({ lat: location.lat(), lng: location.lng() });
             if (mapRef.current) {
               mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-              mapRef.current.setZoom(22); // Set a tighter zoom level to focus on the house
+              mapRef.current.setZoom(22);
             }
           } else {
             alert('Please select a valid address from the suggestions.');
@@ -226,6 +227,7 @@ const App = () => {
   return (
     <Router>
       <Routes>
+        <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/"
