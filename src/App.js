@@ -62,6 +62,25 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   }, [isGoogleLoaded]);
 
+  const handleAddressKeyPress = (event) => {
+    if (event.key === 'Enter' && autocompleteRef.current) {
+      event.preventDefault();
+      // Trigger place selection manually if possible
+      const place = autocompleteRef.current.place;
+      if (place && place.geometry && place.geometry.location) {
+        const location = place.geometry.location;
+        setAddress(place.formattedAddress || '');
+        setCenter({ lat: location.lat(), lng: location.lng() });
+        if (mapRef.current) {
+          mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+          mapRef.current.setZoom(22);
+        }
+      } else {
+        alert('Please select a valid address from the suggestions.');
+      }
+    }
+  };
+
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
     const lng = event.latLng.lng();
@@ -183,6 +202,7 @@ const MainApp = ({ isGoogleLoaded }) => {
             type="text"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
+            onKeyPress={handleAddressKeyPress}
             placeholder="Enter project address"
             style={{ width: '100%', border: 'none', outline: 'none' }}
           />
