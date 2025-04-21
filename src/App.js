@@ -19,13 +19,12 @@ const initialCenter = {
   lng: -106.6700,
 };
 
-const MainApp = () => {
+const MainApp = ({ isGoogleLoaded }) => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
   const [address, setAddress] = useState('');
   const [center, setCenter] = useState(initialCenter);
   const [csrfToken, setCsrfToken] = useState(null);
-  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
@@ -239,6 +238,8 @@ const MainApp = () => {
 };
 
 const App = () => {
+  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
+
   return (
     <LoadScript
       googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
@@ -253,7 +254,7 @@ const App = () => {
             path="/"
             element={
               <ProtectedRoute>
-                <MainApp />
+                <MainApp isGoogleLoaded={isGoogleLoaded} />
               </ProtectedRoute>
             }
           />
