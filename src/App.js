@@ -24,12 +24,26 @@ const MainApp = () => {
   const [currentPoints, setCurrentPoints] = useState([]);
   const [address, setAddress] = useState('');
   const [center, setCenter] = useState(initialCenter);
+  const [csrfToken, setCsrfToken] = useState(null);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await axios.get('https://roof-measure-backend.onrender.com/csrf-token', {
+          withCredentials: true
+        });
+        setCsrfToken(response.data.csrfToken);
+      } catch (error) {
+        console.error('Failed to fetch CSRF token:', error);
+      }
+    };
+
+    fetchCsrfToken();
+
     const input = document.getElementById('address-input');
     if (input && window.google && window.google.maps && window.google.maps.places) {
       autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
@@ -89,7 +103,10 @@ const MainApp = () => {
           polygons,
         },
         {
-          withCredentials: true
+          withCredentials: true,
+          headers: {
+            'CSRF-Token': csrfToken
+          }
         }
       );
       alert(`Project saved with ID: ${response.data.id}`);
@@ -120,6 +137,9 @@ const MainApp = () => {
       const response = await axios.post('https://roof-measure-backend.onrender.com/generate-pdf', pdfData, {
         withCredentials: true,
         responseType: 'blob',
+        headers: {
+          'CSRF-Token': csrfToken
+        }
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -136,8 +156,16 @@ const MainApp = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
+      // Always fetch a fresh CSRF token before logout
+      const response = await axios.get('https://roof-measure-backend.onrender.com/csrf-token', {
         withCredentials: true
+      });
+      const freshCsrfToken = response.data.csrfToken;
+      await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
+        withCredentials: true,
+        headers: {
+          'CSRF-Token': freshCsrfToken
+        }
       });
       navigate('/login');
     } catch (error) {
