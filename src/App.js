@@ -62,21 +62,37 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   }, [isGoogleLoaded]);
 
-  const handleAddressKeyPress = (event) => {
-    if (event.key === 'Enter' && autocompleteRef.current) {
+  const handleAddressKeyPress = async (event) => {
+    if (event.key === 'Enter' && isGoogleLoaded) {
       event.preventDefault();
-      // Trigger place selection manually if possible
-      const place = autocompleteRef.current.place;
-      if (place && place.geometry && place.geometry.location) {
-        const location = place.geometry.location;
-        setAddress(place.formattedAddress || '');
-        setCenter({ lat: location.lat(), lng: location.lng() });
-        if (mapRef.current) {
-          mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-          mapRef.current.setZoom(22);
-        }
-      } else {
-        alert('Please select a valid address from the suggestions.');
+      const input = document.getElementById('address-input').value;
+      if (input && window.google && window.google.maps) {
+        const service = new window.google.maps.places.PlacesService(mapRef.current);
+        service.findPlaceFromQuery(
+          {
+            query: input,
+            fields: ['formatted_address', 'geometry'],
+            locationBias: { lat: initialCenter.lat, lng: initialCenter.lng }
+          },
+          (results, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+              const place = results[0];
+              if (place.geometry && place.geometry.location) {
+                const location = place.geometry.location;
+                setAddress(place.formatted_address || '');
+                setCenter({ lat: location.lat(), lng: location.lng() });
+                if (mapRef.current) {
+                  mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                  mapRef.current.setZoom(22);
+                }
+              } else {
+                alert('No valid location found for this address.');
+              }
+            } else {
+              alert('Address not found. Please try again or select from suggestions.');
+            }
+          }
+        );
       }
     }
   };
