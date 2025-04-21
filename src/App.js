@@ -19,7 +19,7 @@ const initialCenter = {
   lng: -106.6700,
 };
 
-const MainApp = ({ setIsLibrariesLoaded }) => {
+const MainApp = () => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
   const [address, setAddress] = useState('');
@@ -30,33 +30,29 @@ const MainApp = ({ setIsLibrariesLoaded }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places) {
-      const input = document.getElementById('address-input');
-      if (input) {
-        autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
-          types: ['address'],
-          componentRestrictions: { country: 'ca' },
-        });
+    const input = document.getElementById('address-input');
+    if (input && window.google && window.google.maps && window.google.maps.places) {
+      autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
+        types: ['address'],
+        componentRestrictions: { country: 'ca' },
+      });
 
-        autocompleteRef.current.addListener('place_changed', () => {
-          const place = autocompleteRef.current.getPlace();
-          if (place.geometry) {
-            const location = place.geometry.location;
-            setAddress(place.formatted_address);
-            setCenter({ lat: location.lat(), lng: location.lng() });
-            if (mapRef.current) {
-              mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-              mapRef.current.setZoom(22);
-            }
-          } else {
-            alert('Please select a valid address from the suggestions.');
+      autocompleteRef.current.addListener('place_changed', () => {
+        const place = autocompleteRef.current.getPlace();
+        if (place.geometry) {
+          const location = place.geometry.location;
+          setAddress(place.formatted_address);
+          setCenter({ lat: location.lat(), lng: location.lng() });
+          if (mapRef.current) {
+            mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+            mapRef.current.setZoom(22);
           }
-        });
-      } else {
-        console.error('Address input element not found.');
-      }
+        } else {
+          alert('Please select a valid address from the suggestions.');
+        }
+      });
     } else {
-      console.error('Google Maps Places API not loaded.');
+      console.error('Address input element or Google Maps Places API not loaded.');
     }
   }, []);
 
@@ -200,7 +196,7 @@ const MainApp = ({ setIsLibrariesLoaded }) => {
                 strokeWeight: 2,
               }}
             />
-          ))}
+          )}
         </GoogleMap>
       </div>
       <button onClick={finishPolygon}>Finish Section</button>
@@ -217,13 +213,10 @@ const MainApp = ({ setIsLibrariesLoaded }) => {
 };
 
 const App = () => {
-  const [isLibrariesLoaded, setIsLibrariesLoaded] = useState(false);
-
   return (
     <LoadScript
       googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
       libraries={GOOGLE_MAPS_LIBRARIES}
-      onLoad={() => setIsLibrariesLoaded(true)}
     >
       <Router>
         <Routes>
@@ -233,7 +226,7 @@ const App = () => {
             path="/"
             element={
               <ProtectedRoute>
-                <MainApp setIsLibrariesLoaded={setIsLibrariesLoaded} />
+                <MainApp />
               </ProtectedRoute>
             }
           />
