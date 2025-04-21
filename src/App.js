@@ -4,7 +4,7 @@ import { GoogleMap, LoadScript, Polygon } from '@react-google-maps/api';
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import Login from './Login';
-import Register from './Register'; // Import the Register component
+import Register from './Register';
 import ProtectedRoute from './ProtectedRoute';
 
 const GOOGLE_MAPS_LIBRARIES = ["geometry", "places"];
@@ -19,19 +19,18 @@ const initialCenter = {
   lng: -106.6700,
 };
 
-const MainApp = () => {
+const MainApp = ({ setIsLibrariesLoaded }) => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
   const [address, setAddress] = useState('');
   const [center, setCenter] = useState(initialCenter);
-  const [isLibrariesLoaded, setIsLibrariesLoaded] = useState(false);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLibrariesLoaded && window.google && window.google.maps && window.google.maps.places) {
+    if (window.google && window.google.maps && window.google.maps.places) {
       const input = document.getElementById('address-input');
       if (input) {
         autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
@@ -56,10 +55,10 @@ const MainApp = () => {
       } else {
         console.error('Address input element not found.');
       }
-    } else if (isLibrariesLoaded) {
+    } else {
       console.error('Google Maps Places API not loaded.');
     }
-  }, [isLibrariesLoaded]);
+  }, []);
 
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
@@ -169,46 +168,40 @@ const MainApp = () => {
         />
       </div>
       <div ref={mapContainerRef}>
-        <LoadScript
-          googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
-          libraries={GOOGLE_MAPS_LIBRARIES}
-          onLoad={() => setIsLibrariesLoaded(true)}
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          center={center}
+          zoom={15}
+          onClick={onMapClick}
+          mapTypeId="satellite"
+          onLoad={(map) => (mapRef.current = map)}
         >
-          <GoogleMap
-            mapContainerStyle={containerStyle}
-            center={center}
-            zoom={15}
-            onClick={onMapClick}
-            mapTypeId="satellite"
-            onLoad={(map) => (mapRef.current = map)}
-          >
-            {polygons.map((poly, index) => (
-              <Polygon
-                key={index}
-                paths={poly}
-                options={{
-                  fillColor: 'blue',
-                  fillOpacity: '0.35',
-                  strokeColor: 'blue',
-                  strokeOpacity: '0.8',
-                  strokeWeight: 2,
-                }}
-              />
-            ))}
-            {currentPoints.length > 0 && (
-              <Polygon
-                paths={currentPoints}
-                options={{
-                  fillColor: 'blue',
-                  fillOpacity: '0.35',
-                  strokeColor: 'blue',
-                  strokeOpacity: '0.8',
-                  strokeWeight: 2,
-                }}
-              />
-            )}
-          </GoogleMap>
-        </LoadScript>
+          {polygons.map((poly, index) => (
+            <Polygon
+              key={index}
+              paths={poly}
+              options={{
+                fillColor: 'blue',
+                fillOpacity: '0.35',
+                strokeColor: 'blue',
+                strokeOpacity: '0.8',
+                strokeWeight: 2,
+              }}
+            />
+          ))}
+          {currentPoints.length > 0 && (
+            <Polygon
+              paths={currentPoints}
+              options={{
+                fillColor: 'blue',
+                fillOpacity: '0.35',
+                strokeColor: 'blue',
+                strokeOpacity: '0.8',
+                strokeWeight: 2,
+              }}
+            />
+          ))}
+        </GoogleMap>
       </div>
       <button onClick={finishPolygon}>Finish Section</button>
       <button onClick={saveProject}>Save Project</button>
@@ -224,21 +217,29 @@ const MainApp = () => {
 };
 
 const App = () => {
+  const [isLibrariesLoaded, setIsLibrariesLoaded] = useState(false);
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <MainApp />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </Router>
+    <LoadScript
+      googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
+      libraries={GOOGLE_MAPS_LIBRARIES}
+      onLoad={() => setIsLibrariesLoaded(true)}
+    >
+      <Router>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainApp setIsLibrariesLoaded={setIsLibrariesLoaded} />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Router>
+    </LoadScript>
   );
 };
 
