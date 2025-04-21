@@ -132,7 +132,8 @@ const MainApp = ({ isGoogleLoaded }) => {
         {
           withCredentials: true,
           headers: {
-            'CSRF-Token': csrfToken
+            'CSRF-Token': csrfToken,
+            'X-CSRF-Token': csrfToken
           }
         }
       );
@@ -165,7 +166,8 @@ const MainApp = ({ isGoogleLoaded }) => {
         withCredentials: true,
         responseType: 'blob',
         headers: {
-          'CSRF-Token': csrfToken
+          'CSRF-Token': csrfToken,
+          'X-CSRF-Token': csrfToken
         }
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -192,7 +194,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         withCredentials: true,
         headers: {
           'CSRF-Token': freshCsrfToken,
-          'X-CSRF-Token': freshCsrfToken // Add this header as well for compatibility
+          'X-CSRF-Token': freshCsrfToken
         }
       });
       navigate('/login');

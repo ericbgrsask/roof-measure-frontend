@@ -10,7 +10,8 @@ const ProtectedRoute = ({ children }) => {
       try {
         console.log('Checking authentication with /projects request');
         const response = await axios.get('https://roof-measure-backend.onrender.com/projects', {
-          withCredentials: true
+          withCredentials: true,
+          timeout: 5000 // 5-second timeout
         });
         console.log('Auth check response:', response.data);
         setIsAuthenticated(true);
