@@ -6,7 +6,6 @@ import html2canvas from 'html2canvas';
 import Login from './Login';
 import ProtectedRoute from './ProtectedRoute';
 
-// Define libraries as a constant outside the component
 const GOOGLE_MAPS_LIBRARIES = ["geometry"];
 
 const containerStyle = {
@@ -14,15 +13,16 @@ const containerStyle = {
   height: '600px',
 };
 
-const center = {
-  lat: 52.1332, // Saskatoon coordinates
+const initialCenter = {
+  lat: 52.1332, // Default: Saskatoon coordinates
   lng: -106.6700,
 };
 
 const MainApp = () => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
-  const [address, setAddress] = useState(''); // State for project address
+  const [address, setAddress] = useState('');
+  const [center, setCenter] = useState(initialCenter); // Dynamic map center
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -47,21 +47,45 @@ const MainApp = () => {
     return (areaMeters * 10.764).toFixed(0);
   };
 
+  const searchAddress = async () => {
+    if (!address) {
+      alert('Please enter a project address to search.');
+      return;
+    }
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      if (data.status === 'OK') {
+        const location = data.results[0].geometry.location;
+        setCenter({ lat: location.lat, lng: location.lng });
+        if (mapRef.current) {
+          mapRef.current.panTo({ lat: location.lat, lng: location.lng });
+        }
+      } else {
+        alert('Address not found. Please try a different address.');
+      }
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      alert('Failed to search for the address. Please try again.');
+    }
+  };
+
   const saveProject = async () => {
     if (!address) {
       alert('Please enter a project address.');
       return;
     }
     try {
-      const token = localStorage.getItem('token');
       const response = await axios.post(
         'https://roof-measure-backend.onrender.com/projects',
         {
-          address: address, // Use the dynamic address
+          address: address,
           polygons,
         },
         {
-          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true
         }
       );
       alert(`Project saved with ID: ${response.data.id}`);
@@ -80,7 +104,7 @@ const MainApp = () => {
       const canvas = await html2canvas(mapContainerRef.current);
       const screenshot = canvas.toDataURL('image/png');
       const pdfData = {
-        address: address, // Use the dynamic address
+        address: address,
         screenshot,
         polygons,
         areas: polygons.map((poly, index) => ({
@@ -89,9 +113,8 @@ const MainApp = () => {
         })),
         totalArea: polygons.reduce((sum, poly) => sum + parseInt(calculateArea(poly), 10), 0),
       };
-      const token = localStorage.getItem('token');
       const response = await axios.post('https://roof-measure-backend.onrender.com/generate-pdf', pdfData, {
-        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -107,9 +130,16 @@ const MainApp = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
+        withCredentials: true
+      });
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      navigate('/login');
+    }
   };
 
   return (
@@ -128,12 +158,13 @@ const MainApp = () => {
           placeholder="Enter project address"
           style={{ width: '300px', marginLeft: '10px' }}
         />
+        <button onClick={searchAddress} style={{ marginLeft: '10px' }}>Search</button>
       </div>
       <div ref={mapContainerRef}>
         <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
           <GoogleMap
             mapContainerStyle={containerStyle}
-            center={center}
+            center={center} // Use dynamic center
             zoom={15}
             onClick={onMapClick}
             mapTypeId="satellite"
@@ -163,7 +194,7 @@ const MainApp = () => {
                   strokeWeight: 2,
                 }}
               />
-            )}
+            ))}
           </GoogleMap>
         </LoadScript>
       </div>
