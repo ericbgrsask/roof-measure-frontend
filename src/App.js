@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
 import { GoogleMap, LoadScript, Polygon } from '@react-google-maps/api';
 import axios from 'axios';
@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import Login from './Login';
 import ProtectedRoute from './ProtectedRoute';
 
-const GOOGLE_MAPS_LIBRARIES = ["geometry"];
+const GOOGLE_MAPS_LIBRARIES = ["geometry", "places"];
 
 const containerStyle = {
   width: '800px',
@@ -14,7 +14,7 @@ const containerStyle = {
 };
 
 const initialCenter = {
-  lat: 52.1332, // Default: Saskatoon coordinates
+  lat: 52.1332,
   lng: -106.6700,
 };
 
@@ -22,10 +22,43 @@ const MainApp = () => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
   const [address, setAddress] = useState('');
-  const [center, setCenter] = useState(initialCenter); // Dynamic map center
+  const [center, setCenter] = useState(initialCenter);
+  const [isLibrariesLoaded, setIsLibrariesLoaded] = useState(false);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
+  const autocompleteRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLibrariesLoaded && window.google && window.google.maps && window.google.maps.places) {
+      const input = document.getElementById('address-input');
+      if (input) {
+        autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
+          types: ['address'],
+          componentRestrictions: { country: 'ca' },
+        });
+
+        autocompleteRef.current.addListener('place_changed', () => {
+          const place = autocompleteRef.current.getPlace();
+          if (place.geometry) {
+            const location = place.geometry.location;
+            setAddress(place.formatted_address);
+            setCenter({ lat: location.lat(), lng: location.lng() });
+            if (mapRef.current) {
+              mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+              mapRef.current.setZoom(22); // Set a tighter zoom level to focus on the house
+            }
+          } else {
+            alert('Please select a valid address from the suggestions.');
+          }
+        });
+      } else {
+        console.error('Address input element not found.');
+      }
+    } else if (isLibrariesLoaded) {
+      console.error('Google Maps Places API not loaded.');
+    }
+  }, [isLibrariesLoaded]);
 
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
@@ -45,31 +78,6 @@ const MainApp = () => {
     const path = points.map(point => ({ lat: point.lat, lng: point.lng }));
     const areaMeters = window.google.maps.geometry.spherical.computeArea(path);
     return (areaMeters * 10.764).toFixed(0);
-  };
-
-  const searchAddress = async () => {
-    if (!address) {
-      alert('Please enter a project address to search.');
-      return;
-    }
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}`
-      );
-      const data = await response.json();
-      if (data.status === 'OK') {
-        const location = data.results[0].geometry.location;
-        setCenter({ lat: location.lat, lng: location.lng });
-        if (mapRef.current) {
-          mapRef.current.panTo({ lat: location.lat, lng: location.lng });
-        }
-      } else {
-        alert('Address not found. Please try a different address.');
-      }
-    } catch (error) {
-      console.error('Error geocoding address:', error);
-      alert('Failed to search for the address. Please try again.');
-    }
   };
 
   const saveProject = async () => {
@@ -158,13 +166,16 @@ const MainApp = () => {
           placeholder="Enter project address"
           style={{ width: '300px', marginLeft: '10px' }}
         />
-        <button onClick={searchAddress} style={{ marginLeft: '10px' }}>Search</button>
       </div>
       <div ref={mapContainerRef}>
-        <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
+        <LoadScript
+          googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
+          libraries={GOOGLE_MAPS_LIBRARIES}
+          onLoad={() => setIsLibrariesLoaded(true)}
+        >
           <GoogleMap
             mapContainerStyle={containerStyle}
-            center={center} // Use dynamic center
+            center={center}
             zoom={15}
             onClick={onMapClick}
             mapTypeId="satellite"
@@ -176,9 +187,9 @@ const MainApp = () => {
                 paths={poly}
                 options={{
                   fillColor: 'blue',
-                  fillOpacity: 0.35,
+                  fillOpacity: '0.35',
                   strokeColor: 'blue',
-                  strokeOpacity: 0.8,
+                  strokeOpacity: '0.8',
                   strokeWeight: 2,
                 }}
               />
@@ -188,13 +199,13 @@ const MainApp = () => {
                 paths={currentPoints}
                 options={{
                   fillColor: 'blue',
-                  fillOpacity: 0.35,
+                  fillOpacity: '0.35',
                   strokeColor: 'blue',
-                  strokeOpacity: 0.8,
+                  strokeOpacity: '0.8',
                   strokeWeight: 2,
                 }}
               />
-            ))}
+            )}
           </GoogleMap>
         </LoadScript>
       </div>
