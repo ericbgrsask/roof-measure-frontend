@@ -63,44 +63,45 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   }, [isGoogleLoaded]);
 
-  const handleAddressKeyPress = (event) => {
+  const handleAddressKeyPress = async (event) => {
     if (event.key === 'Enter' && isGoogleLoaded) {
       event.preventDefault();
       const inputValue = inputRef.current.value;
       if (inputValue && window.google && window.google.maps) {
-        const service = new window.google.maps.places.PlacesService(mapRef.current);
-        const request = {
-          query: inputValue,
-          fields: ['place_id'],
-          locationBias: { lat: initialCenter.lat, lng: initialCenter.lng }
-        };
-
-        service.findPlaceFromQuery(request, (results, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-            const placeId = results[0].place_id;
-            service.getDetails(
-              {
-                placeId: placeId,
-                fields: ['formatted_address', 'geometry']
-              },
-              (place, detailStatus) => {
-                if (detailStatus === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
-                  const location = place.geometry.location;
-                  setAddress(place.formatted_address || '');
-                  setCenter({ lat: location.lat(), lng: location.lng() });
-                  if (mapRef.current) {
-                    mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-                    mapRef.current.setZoom(22);
+        const autocompleteService = new window.google.maps.places.AutocompleteService();
+        autocompleteService.getPlacePredictions(
+          {
+            input: inputValue,
+            componentRestrictions: { country: 'ca' }
+          },
+          (predictions, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
+              const placeId = predictions[0].place_id;
+              const placesService = new window.google.maps.places.PlacesService(mapRef.current);
+              placesService.getDetails(
+                {
+                  placeId: placeId,
+                  fields: ['formatted_address', 'geometry']
+                },
+                (place, detailStatus) => {
+                  if (detailStatus === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
+                    const location = place.geometry.location;
+                    setAddress(place.formatted_address || '');
+                    setCenter({ lat: location.lat(), lng: location.lng() });
+                    if (mapRef.current) {
+                      mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                      mapRef.current.setZoom(22);
+                    }
+                  } else {
+                    alert('Unable to fetch address details. Please select from suggestions.');
                   }
-                } else {
-                  alert('Unable to fetch address details. Please select from suggestions.');
                 }
-              }
-            );
-          } else {
-            alert('Address not found. Please try again or select from suggestions.');
+              );
+            } else {
+              alert('No suggestions found for this address. Please try again.');
+            }
           }
-        });
+        );
       } else {
         alert('Google Maps API not loaded. Please try again.');
       }
@@ -316,3 +317,4 @@ const App = () => {
 };
 
 export default App;
+
