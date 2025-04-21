@@ -38,12 +38,15 @@ const MainApp = ({ isGoogleLoaded }) => {
           withCredentials: true
         });
         setCsrfToken(response.data.csrfToken);
+        console.log('Fetched CSRF token:', response.data.csrfToken);
       } catch (error) {
         console.error('Failed to fetch CSRF token:', error);
       }
     };
 
-    fetchCsrfToken();
+    if (isGoogleLoaded) {
+      fetchCsrfToken();
+    }
 
     if (isGoogleLoaded && autocompleteRef.current) {
       autocompleteRef.current.addEventListener('gmp-placeselect', (event) => {
@@ -66,8 +69,18 @@ const MainApp = ({ isGoogleLoaded }) => {
   const handleAddressKeyPress = async (event) => {
     if (event.key === 'Enter' && isGoogleLoaded) {
       event.preventDefault();
-      const inputValue = inputRef.current.value;
-      if (inputValue && window.google && window.google.maps) {
+      const inputValue = inputRef.current.value.trim();
+      if (!inputValue) {
+        alert('Please enter an address.');
+        return;
+      }
+
+      if (!window.google || !window.google.maps || !window.google.maps.places) {
+        alert('Google Maps API not loaded. Please try again.');
+        return;
+      }
+
+      try {
         const autocompleteService = new window.google.maps.places.AutocompleteService();
         autocompleteService.getPlacePredictions(
           {
@@ -78,7 +91,7 @@ const MainApp = ({ isGoogleLoaded }) => {
           (predictions, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
               const placeId = predictions[0].place_id;
-              const placesService = new window.google.maps.places.PlacesService(mapRef.current);
+              const placesService = new window.google.maps.places.PlacesService(mapRef.current || new window.google.maps.Map(document.createElement('div')));
               placesService.getDetails(
                 {
                   placeId: placeId,
@@ -105,8 +118,9 @@ const MainApp = ({ isGoogleLoaded }) => {
             }
           }
         );
-      } else {
-        alert('Google Maps API not loaded. Please try again.');
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        alert('An error occurred while fetching the address. Please try again.');
       }
     }
   };
@@ -136,6 +150,10 @@ const MainApp = ({ isGoogleLoaded }) => {
       alert('Please enter a project address.');
       return;
     }
+    if (!csrfToken) {
+      alert('CSRF token not available. Please try again.');
+      return;
+    }
     try {
       const response = await axios.post(
         'https://roof-measure-backend.onrender.com/projects',
@@ -146,7 +164,6 @@ const MainApp = ({ isGoogleLoaded }) => {
         {
           withCredentials: true,
           headers: {
-            'CSRF-Token': csrfToken,
             'X-CSRF-Token': csrfToken
           }
         }
@@ -161,6 +178,10 @@ const MainApp = ({ isGoogleLoaded }) => {
   const generatePDF = async () => {
     if (!address) {
       alert('Please enter a project address.');
+      return;
+    }
+    if (!csrfToken) {
+      alert('CSRF token not available. Please try again.');
       return;
     }
     try {
@@ -180,7 +201,6 @@ const MainApp = ({ isGoogleLoaded }) => {
         withCredentials: true,
         responseType: 'blob',
         headers: {
-          'CSRF-Token': csrfToken,
           'X-CSRF-Token': csrfToken
         }
       });
@@ -207,8 +227,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
         withCredentials: true,
         headers: {
-          'X-CSRF-Token': freshCsrfToken,
-          'X-XSRF-Token': freshCsrfToken
+          'X-CSRF-Token': freshCsrfToken
         }
       });
       navigate('/login');
