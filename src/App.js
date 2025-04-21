@@ -44,18 +44,12 @@ const MainApp = () => {
 
     fetchCsrfToken();
 
-    const input = document.getElementById('address-input');
-    if (input && window.google && window.google.maps && window.google.maps.places) {
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(input, {
-        types: ['address'],
-        componentRestrictions: { country: 'ca' },
-      });
-
-      autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current.getPlace();
-        if (place.geometry) {
+    if (autocompleteRef.current) {
+      autocompleteRef.current.addEventListener('gmp-placeselect', (event) => {
+        const place = event.place;
+        if (place && place.geometry && place.geometry.location) {
           const location = place.geometry.location;
-          setAddress(place.formatted_address);
+          setAddress(place.formattedAddress || '');
           setCenter({ lat: location.lat(), lng: location.lng() });
           if (mapRef.current) {
             mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
@@ -65,8 +59,6 @@ const MainApp = () => {
           alert('Please select a valid address from the suggestions.');
         }
       });
-    } else {
-      console.error('Address input element or Google Maps Places API not loaded.');
     }
   }, []);
 
@@ -156,7 +148,6 @@ const MainApp = () => {
 
   const handleLogout = async () => {
     try {
-      // Always fetch a fresh CSRF token before logout
       const response = await axios.get('https://roof-measure-backend.onrender.com/csrf-token', {
         withCredentials: true
       });
@@ -182,14 +173,21 @@ const MainApp = () => {
       </div>
       <div style={{ padding: '10px' }}>
         <label htmlFor="address-input">Project Address: </label>
-        <input
-          id="address-input"
-          type="text"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="Enter project address"
-          style={{ width: '300px', marginLeft: '10px' }}
-        />
+        <gmp-place-autocomplete
+          ref={autocompleteRef}
+          style={{ width: '300px', marginLeft: '10px', border: '1px solid #ccc', padding: '5px' }}
+          types="address"
+          component-restrictions='{"country":"ca"}'
+        >
+          <input
+            id="address-input"
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Enter project address"
+            style={{ width: '100%', border: 'none', outline: 'none' }}
+          />
+        </gmp-place-autocomplete>
       </div>
       <div ref={mapContainerRef}>
         <GoogleMap
