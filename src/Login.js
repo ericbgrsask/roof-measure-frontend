@@ -15,10 +15,11 @@ const Login = () => {
       const response = await axios.post('https://roof-measure-backend.onrender.com/login', {
         username,
         password,
+      }, {
+        withCredentials: true
       });
       console.log('Full login response:', response);
-      localStorage.setItem('token', response.data.token); // Store the JWT token
-      navigate('/'); // Redirect to the main app
+      navigate('/');
     } catch (err) {
       console.error('Login error details:', {
         message: err.message,
@@ -54,6 +55,12 @@ const Login = () => {
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <button type="submit">Login</button>
       </form>
+      <p>
+        Don't have an account?{' '}
+        <button onClick={() => navigate('/register')} style={{ color: 'blue', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          Register here
+        </button>
+      </p>
     </div>
   );
 };
