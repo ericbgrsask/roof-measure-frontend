@@ -66,62 +66,73 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   }, [isGoogleLoaded]);
 
-  const handleAddressKeyPress = async (event) => {
-    if (event.key === 'Enter' && isGoogleLoaded) {
-      event.preventDefault();
-      const inputValue = inputRef.current.value.trim();
-      if (!inputValue) {
-        alert('Please enter an address.');
-        return;
-      }
+  const handleAddressSearch = async () => {
+    if (!isGoogleLoaded) {
+      alert('Google Maps API is still loading. Please try again in a moment.');
+      return;
+    }
 
-      if (!window.google || !window.google.maps || !window.google.maps.places) {
-        alert('Google Maps API not loaded. Please try again.');
-        return;
-      }
+    const inputValue = inputRef.current.value.trim();
+    if (!inputValue) {
+      alert('Please enter an address.');
+      return;
+    }
 
-      try {
-        const autocompleteService = new window.google.maps.places.AutocompleteService();
-        autocompleteService.getPlacePredictions(
-          {
-            input: inputValue,
-            componentRestrictions: { country: 'ca' },
-            types: ['address']
-          },
-          (predictions, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
-              const placeId = predictions[0].place_id;
-              const placesService = new window.google.maps.places.PlacesService(mapRef.current || new window.google.maps.Map(document.createElement('div')));
-              placesService.getDetails(
-                {
-                  placeId: placeId,
-                  fields: ['formatted_address', 'geometry']
-                },
-                (place, detailStatus) => {
-                  if (detailStatus === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
-                    const location = place.geometry.location;
-                    setAddress(place.formatted_address || '');
-                    setCenter({ lat: location.lat(), lng: location.lng() });
-                    if (mapRef.current) {
-                      mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-                      mapRef.current.setZoom(22);
-                    }
-                  } else {
-                    console.error('Failed to fetch place details:', detailStatus);
-                    alert('Unable to fetch address details. Please select from suggestions.');
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      alert('Google Maps API not loaded. Please try again.');
+      return;
+    }
+
+    try {
+      const autocompleteService = new window.google.maps.places.AutocompleteService();
+      autocompleteService.getPlacePredictions(
+        {
+          input: inputValue,
+          componentRestrictions: { country: 'ca' },
+          types: ['address']
+        },
+        (predictions, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions && predictions.length > 0) {
+            const placeId = predictions[0].place_id;
+            console.log('Place ID from prediction:', placeId);
+            const placesService = new window.google.maps.places.PlacesService(mapRef.current || new window.google.maps.Map(document.createElement('div')));
+            placesService.getDetails(
+              {
+                placeId: placeId,
+                fields: ['formatted_address', 'geometry']
+              },
+              (place, detailStatus) => {
+                if (detailStatus === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
+                  const location = place.geometry.location;
+                  console.log('Place details:', place);
+                  setAddress(place.formatted_address || '');
+                  setCenter({ lat: location.lat(), lng: location.lng() });
+                  if (mapRef.current) {
+                    mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                    mapRef.current.setZoom(22);
                   }
+                } else {
+                  console.error('Failed to fetch place details:', detailStatus);
+                  alert('Unable to fetch address details. Please select from suggestions.');
                 }
-              );
-            } else {
-              console.error('No predictions found:', status);
-              alert('No suggestions found for this address. Please try again.');
-            }
+              }
+            );
+          } else {
+            console.error('No predictions found:', status);
+            alert('No suggestions found for this address. Please try again.');
           }
-        );
-      } catch (error) {
-        console.error('Error fetching address:', error);
-        alert('An error occurred while fetching the address. Please try again.');
-      }
+        }
+      );
+    } catch (error) {
+      console.error('Error fetching address:', error);
+      alert('An error occurred while fetching the address. Please try again.');
+    }
+  };
+
+  const handleAddressKeyPress = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleAddressSearch();
     }
   };
 
@@ -243,24 +254,32 @@ const MainApp = ({ isGoogleLoaded }) => {
         <h1>Saskatoon Roof Measure</h1>
         <button onClick={handleLogout}>Logout</button>
       </div>
-      <div style={{ padding: '10px' }}>
-        <label htmlFor="address-input">Project Address: </label>
-        <gmp-place-autocomplete
-          ref={autocompleteRef}
-          style={{ width: '300px', marginLeft: '10px', border: '1px solid #ccc', padding: '5px' }}
-          component-restrictions='{"country":"ca"}'
-        >
-          <input
-            id="address-input"
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            onKeyPress={handleAddressKeyPress}
-            ref={inputRef}
-            placeholder="Enter project address"
-            style={{ width: '100%', border: 'none', outline: 'none' }}
-          />
-        </gmp-place-autocomplete>
+      <div style={{ padding: '10px', display: 'flex', alignItems: 'center' }}>
+        <label htmlFor="address-input" style={{ marginRight: '10px' }}>Project Address: </label>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <gmp-place-autocomplete
+            ref={autocompleteRef}
+            style={{ width: '300px', border: '1px solid #ccc', padding: '5px' }}
+            component-restrictions='{"country":"ca"}'
+          >
+            <input
+              id="address-input"
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              onKeyPress={handleAddressKeyPress}
+              ref={inputRef}
+              placeholder="Enter project address"
+              style={{ width: '100%', border: 'none', outline: 'none' }}
+            />
+          </gmp-place-autocomplete>
+          <button
+            onClick={handleAddressSearch}
+            style={{ marginLeft: '10px', padding: '5px 10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+          >
+            Search
+          </button>
+        </div>
       </div>
       <div ref={mapContainerRef}>
         <GoogleMap
