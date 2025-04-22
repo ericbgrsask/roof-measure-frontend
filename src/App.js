@@ -50,9 +50,12 @@ const MainApp = ({ isGoogleLoaded }) => {
     if (isGoogleLoaded && autocompleteRef.current) {
       autocompleteRef.current.addEventListener('gmp-placeselect', (event) => {
         const place = event.place;
+        console.log('Place selected by autocomplete:', place);
+        if (place && place.formattedAddress) {
+          setAddress(place.formattedAddress);
+        }
         if (place && place.geometry && place.geometry.location) {
           const location = place.geometry.location;
-          setAddress(place.formattedAddress || '');
           setCenter({ lat: location.lat(), lng: location.lng() });
           if (mapRef.current) {
             mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
@@ -113,7 +116,7 @@ const MainApp = ({ isGoogleLoaded }) => {
                   }
                 } else {
                   console.error('Failed to fetch place details:', detailStatus);
-                  alert('Unable to fetch address details. Please select from suggestions.');
+                  alert('Unable to fetch address details. Please try again.');
                 }
               }
             );
@@ -139,7 +142,7 @@ const MainApp = ({ isGoogleLoaded }) => {
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
     const lng = event.latLng.lng();
-    setCurrentPoints([...currentPoints, { lat, lng }]);
+    setCurrentPoints([...currentPoints, { lat,foods: { lat, lng }}]);
   };
 
   const finishPolygon = () => {
