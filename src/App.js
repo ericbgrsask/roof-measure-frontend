@@ -28,7 +28,6 @@ const MainApp = ({ isGoogleLoaded }) => {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const autocompleteRef = useRef(null);
-  const inputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -72,8 +71,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
 
-    const inputValue = inputRef.current.value.trim();
-    if (!inputValue) {
+    if (!address) {
       alert('Please enter an address.');
       return;
     }
@@ -83,11 +81,13 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
 
+    console.log('Searching for address:', address);
+
     try {
       const autocompleteService = new window.google.maps.places.AutocompleteService();
       autocompleteService.getPlacePredictions(
         {
-          input: inputValue,
+          input: address,
           componentRestrictions: { country: 'ca' },
           types: ['address']
         },
@@ -268,7 +268,6 @@ const MainApp = ({ isGoogleLoaded }) => {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               onKeyPress={handleAddressKeyPress}
-              ref={inputRef}
               placeholder="Enter project address"
               style={{ width: '100%', border: 'none', outline: 'none' }}
             />
