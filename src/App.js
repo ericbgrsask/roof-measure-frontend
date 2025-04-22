@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
-import { GoogleMap, LoadScript, Polygon, Marker, InfoWindow } from '@react-google-maps/api';
-import axios from 'axios';
+import { GoogleMap, LoadScript, Polygon, OverlayView } from '@react-google-maps/api';
+import api from './api'; // Import the Axios instance
 import html2canvas from 'html2canvas';
 import Login from './Login';
 import Register from './Register';
@@ -19,6 +19,11 @@ const initialCenter = {
   lng: -106.6700,
 };
 
+const getPixelPositionOffset = (width, height) => ({
+  x: -(width / 2),
+  y: -(height / 2),
+});
+
 const MainApp = ({ isGoogleLoaded }) => {
   const [polygons, setPolygons] = useState([]);
   const [currentPoints, setCurrentPoints] = useState([]);
@@ -26,7 +31,6 @@ const MainApp = ({ isGoogleLoaded }) => {
   const [center, setCenter] = useState(initialCenter);
   const [csrfToken, setCsrfToken] = useState(null);
   const [pitchInputs, setPitchInputs] = useState([]); // Store pitch for each polygon
-  const [selectedPolygon, setSelectedPolygon] = useState(null); // For InfoWindow
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -34,9 +38,7 @@ const MainApp = ({ isGoogleLoaded }) => {
   useEffect(() => {
     const fetchCsrfToken = async () => {
       try {
-        const response = await axios.get('https://roof-measure-backend.onrender.com/csrf-token', {
-          withCredentials: true
-        });
+        const response = await api.get('/csrf-token');
         setCsrfToken(response.data.csrfToken);
         console.log('Fetched CSRF token:', response.data.csrfToken);
       } catch (error) {
@@ -162,20 +164,15 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
     try {
-      const response = await axios.post(
-        'https://roof-measure-backend.onrender.com/projects',
-        {
-          address: address,
-          polygons,
-          pitches: pitchInputs
-        },
-        {
-          withCredentials: true,
-          headers: {
-            'X-CSRF-Token': csrfToken
-          }
+      const response = await api.post('/projects', {
+        address: address,
+        polygons,
+        pitches: pitchInputs
+      }, {
+        headers: {
+          'X-CSRF-Token': csrfToken
         }
-      );
+      });
       alert(`Project saved with ID: ${response.data.id}`);
     } catch (error) {
       console.error('Error saving project:', error);
@@ -207,8 +204,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         })),
         totalArea: polygons.reduce((sum, poly) => sum + parseInt(calculateArea(poly), 10), 0),
       };
-      const response = await axios.post('https://roof-measure-backend.onrender.com/generate-pdf', pdfData, {
-        withCredentials: true,
+      const response = await api.post('/generate-pdf', pdfData, {
         responseType: 'blob',
         headers: {
           'X-CSRF-Token': csrfToken
@@ -229,13 +225,10 @@ const MainApp = ({ isGoogleLoaded }) => {
 
   const handleLogout = async () => {
     try {
-      const response = await axios.get('https://roof-measure-backend.onrender.com/csrf-token', {
-        withCredentials: true
-      });
+      const response = await api.get('/csrf-token');
       const freshCsrfToken = response.data.csrfToken;
       console.log('Sending CSRF token for logout:', freshCsrfToken);
-      await axios.post('https://roof-measure-backend.onrender.com/logout', {}, {
-        withCredentials: true,
+      await api.post('/logout', {}, {
         headers: {
           'X-CSRF-Token': freshCsrfToken
         }
@@ -302,27 +295,28 @@ const MainApp = ({ isGoogleLoaded }) => {
                   strokeOpacity: '0.8',
                   strokeWeight: 2,
                 }}
-                onClick={() => setSelectedPolygon(index)}
               />
-              <Marker
+              <OverlayView
                 position={calculatePolygonCenter(poly)}
-                onClick={() => setSelectedPolygon(index)}
-                icon={{
-                  url: 'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>',
-                  scaledSize: new window.google.maps.Size(0, 0)
-                }}
-              />
-              {selectedPolygon === index && (
-                <InfoWindow
-                  position={calculatePolygonCenter(poly)}
-                  onCloseClick={() => setSelectedPolygon(null)}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                getPixelPositionOffset={getPixelPositionOffset}
+              >
+                <div
+                  style={{
+                    background: 'white',
+                    border: '1px solid #ccc',
+                    padding: '5px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    borderRadius: '4px',
+                  }}
                 >
-                  <div>
-                    <p>Section {index + 1}: {calculateArea(poly)} SQFT</p>
-                    <p>Pitch: {pitchInputs[index]}</p>
-                  </div>
-                </InfoWindow>
-              )}
+                  <div>{calculateArea(poly)} SQFT</div>
+                  <div>{pitchInputs[index]}</div>
+                </div>
+              </OverlayView>
             </React.Fragment>
           ))}
           {currentPoints.length > 0 && (

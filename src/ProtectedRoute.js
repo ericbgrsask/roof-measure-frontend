@@ -1,24 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import api from './api'; // Import the Axios instance
 
 const ProtectedRoute = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         console.log('Checking authentication with /projects request');
-        const response = await axios.get('https://roof-measure-backend.onrender.com/projects', {
-          withCredentials: true,
-          timeout: 5000
-        });
+        const response = await api.get('/projects');
         console.log('Auth check response:', response.data);
         setIsAuthenticated(true);
       } catch (error) {
-        console.error('Auth check failed:', error.message);
-        setError(error.message);
+        console.error('Auth check failed:', error);
         setIsAuthenticated(false);
       }
     };
@@ -30,11 +25,12 @@ const ProtectedRoute = ({ children }) => {
     return <div>Loading...</div>;
   }
 
-  if (error) {
-    console.error('Authentication error:', error);
+  if (!isAuthenticated) {
+    console.log('Authentication error:', 'Request failed with status code 401');
+    return <Navigate to="/login" />;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return children;
 };
 
 export default ProtectedRoute;

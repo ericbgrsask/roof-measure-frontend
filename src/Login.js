@@ -1,39 +1,29 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import api from './api'; // Import the Axios instance
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       console.log('Sending login request:', { username, password });
-      const response = await axios.post('https://roof-measure-backend.onrender.com/login', {
-        username,
-        password,
-      }, {
-        withCredentials: true
-      });
+      const response = await api.post('/login', { username, password });
       console.log('Full login response:', response);
       navigate('/');
-    } catch (err) {
-      console.error('Login error details:', {
-        message: err.message,
-        response: err.response ? err.response.data : null,
-        status: err.response ? err.response.status : null,
-      });
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
+    } catch (error) {
+      console.error('Login error details:', error);
+      alert('Login failed. Please check your credentials and try again.');
     }
   };
 
   return (
-    <div style={{ textAlign: 'center', marginTop: '50px' }}>
-      <h1>Login to Saskatoon Roof Measure</h1>
-      <form onSubmit={handleLogin}>
+    <div>
+      <h2>Login</h2>
+      <form onSubmit={handleSubmit}>
         <div>
           <label>Username: </label>
           <input
@@ -43,7 +33,7 @@ const Login = () => {
             required
           />
         </div>
-        <div style={{ margin: '10px 0' }}>
+        <div>
           <label>Password: </label>
           <input
             type="password"
@@ -52,14 +42,10 @@ const Login = () => {
             required
           />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
         <button type="submit">Login</button>
       </form>
       <p>
-        Don't have an account?{' '}
-        <button onClick={() => navigate('/register')} style={{ color: 'blue', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-          Register here
-        </button>
+        Don't have an account? <a href="/register">Register here</a>
       </p>
     </div>
   );
