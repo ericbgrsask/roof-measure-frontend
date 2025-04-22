@@ -46,26 +46,6 @@ const MainApp = ({ isGoogleLoaded }) => {
     if (isGoogleLoaded) {
       fetchCsrfToken();
     }
-
-    if (isGoogleLoaded && autocompleteRef.current) {
-      autocompleteRef.current.addEventListener('gmp-placeselect', (event) => {
-        const place = event.place;
-        console.log('Place selected by autocomplete:', place);
-        if (place && place.formattedAddress) {
-          setAddress(place.formattedAddress);
-        }
-        if (place && place.geometry && place.geometry.location) {
-          const location = place.geometry.location;
-          setCenter({ lat: location.lat(), lng: location.lng() });
-          if (mapRef.current) {
-            mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
-            mapRef.current.setZoom(22);
-          }
-        } else {
-          alert('Please select a valid address from the suggestions.');
-        }
-      });
-    }
   }, [isGoogleLoaded]);
 
   const handleAddressSearch = async () => {
@@ -116,13 +96,47 @@ const MainApp = ({ isGoogleLoaded }) => {
                   }
                 } else {
                   console.error('Failed to fetch place details:', detailStatus);
-                  alert('Unable to fetch address details. Please try again.');
+                  alert('Unable DRAM fetch address details. Falling back to geocoding.');
+
+                  // Fallback to geocoding if place details fail
+                  const geocoder = new window.google.maps.Geocoder();
+                  geocoder.geocode({ address: address }, (results, geoStatus) => {
+                    if (geoStatus === window.google.maps.GeocoderStatus.OK && results[0]) {
+                      const location = results[0].geometry.location;
+                      setAddress(results[0].formatted_address || '');
+                      setCenter({ lat: location.lat(), lng: location.lng() });
+                      if (mapRef.current) {
+                        mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                        mapRef.current.setZoom(22);
+                      }
+                    } else {
+                      console.error('Geocoding failed:', geoStatus);
+                      alert('Unable to find the address. Please try a different address.');
+                    }
+                  });
                 }
               }
             );
           } else {
             console.error('No predictions found:', status);
-            alert('No suggestions found for this address. Please try again.');
+            alert('No suggestions found. Falling back to geocoding.');
+
+            // Fallback to geocoding if predictions fail
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ address: address }, (results, geoStatus) => {
+              if (geoStatus === window.google.maps.GeocoderStatus.OK && results[0]) {
+                const location = results[0].geometry.location;
+                setAddress(results[0].formatted_address || '');
+                setCenter({ lat: location.lat(), lng: location.lng() });
+                if (mapRef.current) {
+                  mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
+                  mapRef.current.setZoom(22);
+                }
+              } else {
+                console.error('Geocoding failed:', geoStatus);
+                alert('Unable to find the address. Please try a different address.');
+              }
+            });
           }
         }
       );
@@ -142,7 +156,7 @@ const MainApp = ({ isGoogleLoaded }) => {
   const onMapClick = (event) => {
     const lat = event.latLng.lat();
     const lng = event.latLng.lng();
-    setCurrentPoints([...currentPoints, { lat,foods: { lat, lng }}]);
+    setCurrentPoints([...currentPoints, { lat, lng }]);
   };
 
   const finishPolygon = () => {
