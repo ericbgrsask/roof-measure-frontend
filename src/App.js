@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
-import { GoogleMap, LoadScript, Polygon } from '@react-google-maps/api';
+import { GoogleMap, LoadScript, Polygon, Marker, InfoWindow } from '@react-google-maps/api';
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import Login from './Login';
@@ -25,6 +25,8 @@ const MainApp = ({ isGoogleLoaded }) => {
   const [address, setAddress] = useState('');
   const [center, setCenter] = useState(initialCenter);
   const [csrfToken, setCsrfToken] = useState(null);
+  const [pitchInputs, setPitchInputs] = useState([]); // Store pitch for each polygon
+  const [selectedPolygon, setSelectedPolygon] = useState(null); // For InfoWindow
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -117,7 +119,9 @@ const MainApp = ({ isGoogleLoaded }) => {
 
   const finishPolygon = () => {
     if (currentPoints.length >= 3) {
-      setPolygons([...polygons, currentPoints]);
+      const newPolygons = [...polygons, currentPoints];
+      setPolygons(newPolygons);
+      setPitchInputs([...pitchInputs, '3/12']); // Default pitch
       setCurrentPoints([]);
     }
   };
@@ -127,6 +131,25 @@ const MainApp = ({ isGoogleLoaded }) => {
     const path = points.map(point => ({ lat: point.lat, lng: point.lng }));
     const areaMeters = window.google.maps.geometry.spherical.computeArea(path);
     return (areaMeters * 10.764).toFixed(0);
+  };
+
+  const calculatePolygonCenter = (points) => {
+    if (points.length === 0) return { lat: 0, lng: 0 };
+    let latSum = 0, lngSum = 0;
+    points.forEach(point => {
+      latSum += point.lat;
+      lngSum += point.lng;
+    });
+    return {
+      lat: latSum / points.length,
+      lng: lngSum / points.length
+    };
+  };
+
+  const handlePitchChange = (index, value) => {
+    const newPitchInputs = [...pitchInputs];
+    newPitchInputs[index] = value;
+    setPitchInputs(newPitchInputs);
   };
 
   const saveProject = async () => {
@@ -144,6 +167,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         {
           address: address,
           polygons,
+          pitches: pitchInputs
         },
         {
           withCredentials: true,
@@ -175,9 +199,11 @@ const MainApp = ({ isGoogleLoaded }) => {
         address: address,
         screenshot,
         polygons,
+        pitches: pitchInputs,
         areas: polygons.map((poly, index) => ({
           section: `Section ${index + 1}`,
           area: calculateArea(poly),
+          pitch: pitchInputs[index]
         })),
         totalArea: polygons.reduce((sum, poly) => sum + parseInt(calculateArea(poly), 10), 0),
       };
@@ -266,17 +292,38 @@ const MainApp = ({ isGoogleLoaded }) => {
           }}
         >
           {polygons.map((poly, index) => (
-            <Polygon
-              key={index}
-              paths={poly}
-              options={{
-                fillColor: 'blue',
-                fillOpacity: '0.35',
-                strokeColor: 'blue',
-                strokeOpacity: '0.8',
-                strokeWeight: 2,
-              }}
-            />
+            <React.Fragment key={index}>
+              <Polygon
+                paths={poly}
+                options={{
+                  fillColor: 'blue',
+                  fillOpacity: '0.35',
+                  strokeColor: 'blue',
+                  strokeOpacity: '0.8',
+                  strokeWeight: 2,
+                }}
+                onClick={() => setSelectedPolygon(index)}
+              />
+              <Marker
+                position={calculatePolygonCenter(poly)}
+                onClick={() => setSelectedPolygon(index)}
+                icon={{
+                  url: 'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"></svg>',
+                  scaledSize: new window.google.maps.Size(0, 0)
+                }}
+              />
+              {selectedPolygon === index && (
+                <InfoWindow
+                  position={calculatePolygonCenter(poly)}
+                  onCloseClick={() => setSelectedPolygon(null)}
+                >
+                  <div>
+                    <p>Section {index + 1}: {calculateArea(poly)} SQFT</p>
+                    <p>Pitch: {pitchInputs[index]}</p>
+                  </div>
+                </InfoWindow>
+              )}
+            </React.Fragment>
           ))}
           {currentPoints.length > 0 && (
             <Polygon
@@ -297,7 +344,18 @@ const MainApp = ({ isGoogleLoaded }) => {
       <button onClick={generatePDF}>Generate PDF Report</button>
       <div>
         {polygons.map((poly, i) => (
-          <p key={i}>Section {i + 1}: {calculateArea(poly)} SQFT</p>
+          <div key={i} style={{ margin: '10px 0' }}>
+            <p>Section {i + 1}: {calculateArea(poly)} SQFT</p>
+            <label>
+              Pitch (e.g., 3/12):
+              <input
+                type="text"
+                value={pitchInputs[i] || '3/12'}
+                onChange={(e) => handlePitchChange(i, e.target.value)}
+                style={{ marginLeft: '10px', width: '60px' }}
+              />
+            </label>
+          </div>
         ))}
         <p>Total Flat Area: {polygons.reduce((sum, poly) => sum + parseInt(calculateArea(poly), 10), 0)} SQFT</p>
       </div>
