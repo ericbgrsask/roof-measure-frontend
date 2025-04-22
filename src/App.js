@@ -44,38 +44,51 @@ const MainApp = ({ isGoogleLoaded }) => {
 
     if (isGoogleLoaded) {
       fetchCsrfToken();
+      console.log('Google Maps API loaded:', window.google?.maps);
     }
   }, [isGoogleLoaded]);
 
-  const handleAddressSearch = async () => {
+  const handleAddressSearch = () => {
+    console.log('handleAddressSearch called');
+    console.log('Current address state:', address);
+
     if (!isGoogleLoaded) {
+      console.log('Google Maps API not loaded yet');
       alert('Google Maps API is still loading. Please try again in a moment.');
       return;
     }
 
     if (!address) {
+      console.log('Address is empty');
       alert('Please enter an address.');
       return;
     }
 
     if (!window.google || !window.google.maps) {
-      alert('Google Maps API not loaded. Please try again.');
+      console.log('Google Maps API not available');
+      alert('Google Maps API not loaded. Please check your API key and try again.');
       return;
     }
 
-    console.log('Searching for address:', address);
+    console.log('Proceeding with geocoding for address:', address);
 
     try {
       const geocoder = new window.google.maps.Geocoder();
       geocoder.geocode({ address: address, region: 'ca' }, (results, status) => {
+        console.log('Geocoding status:', status);
+        console.log('Geocoding results:', results);
+
         if (status === window.google.maps.GeocoderStatus.OK && results[0]) {
           const location = results[0].geometry.location;
-          console.log('Geocoding result:', results[0]);
+          console.log('Geocoding successful, location:', { lat: location.lat(), lng: location.lng() });
           setAddress(results[0].formatted_address || address);
           setCenter({ lat: location.lat(), lng: location.lng() });
           if (mapRef.current) {
             mapRef.current.panTo({ lat: location.lat(), lng: location.lng() });
             mapRef.current.setZoom(22);
+            console.log('Map updated to new center:', { lat: location.lat(), lng: location.lng() });
+          } else {
+            console.log('Map reference not available');
           }
         } else {
           console.error('Geocoding failed:', status);
@@ -83,12 +96,13 @@ const MainApp = ({ isGoogleLoaded }) => {
         }
       });
     } catch (error) {
-      console.error('Error fetching address:', error);
+      console.error('Error during geocoding:', error);
       alert('An error occurred while fetching the address. Please try again.');
     }
   };
 
   const handleAddressKeyPress = (event) => {
+    console.log('Key pressed:', event.key);
     if (event.key === 'Enter') {
       event.preventDefault();
       handleAddressSearch();
@@ -220,13 +234,19 @@ const MainApp = ({ isGoogleLoaded }) => {
             id="address-input"
             type="text"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            onChange={(e) => {
+              console.log('Input changed, new value:', e.target.value);
+              setAddress(e.target.value);
+            }}
             onKeyPress={handleAddressKeyPress}
             placeholder="Enter project address"
             style={{ width: '300px', border: '1px solid #ccc', padding: '5px', outline: 'none' }}
           />
           <button
-            onClick={handleAddressSearch}
+            onClick={() => {
+              console.log('Search button clicked');
+              handleAddressSearch();
+            }}
             style={{ marginLeft: '10px', padding: '5px 10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
           >
             Search
@@ -240,7 +260,10 @@ const MainApp = ({ isGoogleLoaded }) => {
           zoom={15}
           onClick={onMapClick}
           mapTypeId="satellite"
-          onLoad={(map) => (mapRef.current = map)}
+          onLoad={(map) => {
+            mapRef.current = map;
+            console.log('Google Map loaded');
+          }}
         >
           {polygons.map((poly, index) => (
             <Polygon
@@ -289,7 +312,11 @@ const App = () => {
     <LoadScript
       googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY}
       libraries={GOOGLE_MAPS_LIBRARIES}
-      onLoad={() => setIsGoogleLoaded(true)}
+      onLoad={() => {
+        console.log('Google Maps API loaded');
+        setIsGoogleLoaded(true);
+      }}
+      onError={(error) => console.error('Google Maps API loading error:', error)}
     >
       <Router>
         <Routes>
