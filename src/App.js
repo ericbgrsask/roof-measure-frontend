@@ -41,7 +41,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       try {
         const response = await api.get('/csrf-token', {
           headers: {
-            'User-Id': localStorage.getItem('userId') || 'anonymous' // Pass user ID for CSRF token mapping
+            'User-Id': localStorage.getItem('userId') || 'anonymous'
           }
         });
         setCsrfToken(response.data.csrfToken);
@@ -110,7 +110,12 @@ const MainApp = ({ isGoogleLoaded }) => {
     }
   };
 
-  const fetchBuildingFootprints = () => {
+  const fetchBuildingFootprints = async () => {
+    if (!address) {
+      alert('Please enter an address first.');
+      return;
+    }
+
     if (!isGoogleLoaded || !window.google || !window.google.maps) {
       alert('Google Maps API not loaded. Please try again.');
       return;
@@ -121,37 +126,78 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
 
-    const placesService = new window.google.maps.places.PlacesService(mapRef.current);
-    placesService.nearbySearch(
-      {
-        location: center,
-        radius: 50, // Search within 50 meters
-        type: 'premise' // Look for buildings
-      },
-      (results, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-          const building = results[0];
-          if (building.geometry && building.geometry.viewport) {
-            const bounds = building.geometry.viewport;
-            const ne = bounds.getNorthEast();
-            const sw = bounds.getSouthWest();
-            const footprint = [
-              { lat: ne.lat(), lng: ne.lng() },
-              { lat: ne.lat(), lng: sw.lng() },
-              { lat: sw.lat(), lng: sw.lng() },
-              { lat: sw.lat(), lng: ne.lng() }
-            ];
-            setBuildingFootprints([footprint]);
-            setPolygons([footprint]);
-            setPitchInputs(['3/12']); // Default pitch for the detected footprint
-          } else {
-            alert('No building footprint found for this location.');
-          }
-        } else {
-          alert('No buildings found at this location.');
+    try {
+      // Capture the map screenshot
+      const canvas = await html2canvas(mapContainerRef.current);
+      const imageDataUrl = canvas.toDataURL('image/png');
+      console.log('Captured map screenshot');
+
+      // Load the image into OpenCV.js
+      const img = new Image();
+      img.src = imageDataUrl;
+      await new Promise(resolve => {
+        img.onload = resolve;
+      });
+
+      const src = cv.imread(img);
+      const dst = new cv.Mat();
+
+      // Convert to grayscale
+      cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY);
+
+      // Apply Canny edge detection
+      cv.Canny(src, dst, 50, 150, 3);
+
+      // Find contours
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
+      cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      // Process contours to find roof sections
+      const roofSections = [];
+      const mapBounds = mapRef.current.getBounds();
+      const ne = mapBounds.getNorthEast();
+      const sw = mapBounds.getSouthWest();
+      const latRange = ne.lat() - sw.lat();
+      const lngRange = ne.lng() - sw.lng();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      for (let i = 0; i < contours.size(); i++) {
+        const contour = contours.get(i);
+        const area = cv.contourArea(contour);
+        if (area < 1000) continue; // Ignore small contours
+
+        const points = [];
+        for (let j = 0; j < contour.data32S.length; j += 2) {
+          const x = contour.data32S[j];
+          const y = contour.data32S[j + 1];
+
+          // Convert pixel coordinates to lat/lng
+          const lat = sw.lat() + (latRange * (1 - y / imgHeight));
+          const lng = sw.lng() + (lngRange * (x / imgWidth));
+          points.push({ lat, lng });
         }
+
+        roofSections.push(points);
       }
-    );
+
+      // Clean up OpenCV Mats
+      src.delete();
+      dst.delete();
+      contours.delete();
+      hierarchy.delete();
+
+      if (roofSections.length > 0) {
+        setPolygons(roofSections);
+        setPitchInputs(roofSections.map(() => '3/12')); // Default pitch
+      } else {
+        alert('No roof sections detected. Please draw manually.');
+      }
+    } catch (error) {
+      console.error('Error detecting roof contours:', error);
+      alert('Failed to detect roof contours. Please draw manually.');
+    }
   };
 
   const handleAddressKeyPress = (event) => {

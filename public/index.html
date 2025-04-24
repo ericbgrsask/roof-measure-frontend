@@ -6,9 +6,17 @@
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="Saskatoon Roof Measure App" />
     <title>Saskatoon Roof Measure</title>
+    <!-- Add OpenCV.js -->
+    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script>
+      // Notify when OpenCV.js is loaded
+      function onOpenCvReady() {
+        console.log('OpenCV.js is ready');
+      }
+    </script>
   </body>
 </html>
