@@ -147,27 +147,66 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       const src = cv.imread(img);
 
+      // Method 1: Color-based segmentation in HSV space
       // Convert to HSV for color-based segmentation
       // eslint-disable-next-line no-undef
       const hsv = new cv.Mat();
       // eslint-disable-next-line no-undef
       cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV);
 
-      // Define a broader color range for roofs (e.g., typical roof colors in HSV)
+      // Define a broader color range for roofs
       // eslint-disable-next-line no-undef
-      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 20, 20, 0]); // Broadened range
+      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 10, 10, 0]); // Even broader range
       // eslint-disable-next-line no-undef
-      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 180, 255]); // Adjusted for lighter roofs
+      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 150, 255]); // Adjusted for lighter roofs
       // eslint-disable-next-line no-undef
-      const mask = new cv.Mat();
+      const colorMask = new cv.Mat();
       // eslint-disable-next-line no-undef
-      cv.inRange(hsv, low, high, mask);
+      cv.inRange(hsv, low, high, colorMask);
+
+      // Log the number of non-zero pixels in the color mask
+      // eslint-disable-next-line no-undef
+      const nonZeroColor = cv.countNonZero(colorMask);
+      console.log('Non-zero pixels in color mask:', nonZeroColor);
+
+      // Method 2: Edge detection as a fallback
+      // Convert to grayscale for edge detection
+      // eslint-disable-next-line no-undef
+      const gray = new cv.Mat();
+      // eslint-disable-next-line no-undef
+      cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+
+      // Apply Gaussian blur to reduce noise
+      // eslint-disable-next-line no-undef
+      cv.GaussianBlur(gray, gray, { width: 5, height: 5 }, 0, 0, cv.BORDER_DEFAULT);
+
+      // Apply Canny edge detection
+      // eslint-disable-next-line no-undef
+      const edgeMask = new cv.Mat();
+      // eslint-disable-next-line no-undef
+      cv.Canny(gray, edgeMask, 30, 100, 3);
+
+      // Log the number of non-zero pixels in the edge mask
+      // eslint-disable-next-line no-undef
+      const nonZeroEdge = cv.countNonZero(edgeMask);
+      console.log('Non-zero pixels in edge mask:', nonZeroEdge);
+
+      // Combine color and edge masks (logical OR)
+      // eslint-disable-next-line no-undef
+      const combinedMask = new cv.Mat();
+      // eslint-disable-next-line no-undef
+      cv.bitwise_or(colorMask, edgeMask, combinedMask);
+
+      // Log the number of non-zero pixels in the combined mask
+      // eslint-disable-next-line no-undef
+      const nonZeroCombined = cv.countNonZero(combinedMask);
+      console.log('Non-zero pixels in combined mask:', nonZeroCombined);
 
       // Morphological operations to clean up the mask (less aggressive)
       // eslint-disable-next-line no-undef
       const kernel = cv.Mat.ones(3, 3, cv.CV_8U); // Smaller kernel
       // eslint-disable-next-line no-undef
-      cv.morphologyEx(mask, mask, cv.MORPH_OPEN, kernel); // Only MORPH_OPEN to avoid merging
+      cv.morphologyEx(combinedMask, combinedMask, cv.MORPH_OPEN, kernel); // Only MORPH_OPEN to avoid merging
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -175,7 +214,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       const hierarchy = new cv.Mat();
       // eslint-disable-next-line no-undef
-      cv.findContours(mask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      cv.findContours(combinedMask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
       // Log contour information for debugging
       console.log('Number of contours found:', contours.size());
@@ -202,7 +241,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         const contour = contours.get(i);
         // eslint-disable-next-line no-undef
         const area = cv.contourArea(contour);
-        if (area < 200) continue; // Lowered minimum area threshold
+        if (area < 100) continue; // Further lowered minimum area threshold
 
         // Simplify contour using Douglas-Peucker algorithm for straight lines
         // eslint-disable-next-line no-undef
@@ -245,13 +284,13 @@ const MainApp = ({ isGoogleLoaded }) => {
 
         // Look for shadows by analyzing intensity in the grayscale image
         // eslint-disable-next-line no-undef
-        const gray = new cv.Mat();
+        const grayShadow = new cv.Mat();
         // eslint-disable-next-line no-undef
-        cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+        cv.cvtColor(src, grayShadow, cv.COLOR_RGB2GRAY);
 
         // Define a region outside the bounding box to look for shadows (e.g., below the roof)
         const shadowRegionHeight = 30;
-        const shadowROI = gray.roi({
+        const shadowROI = grayShadow.roi({
           x: Math.max(0, minX),
           y: Math.max(0, maxY),
           width: Math.min(imgWidth - minX, maxX - minX),
@@ -275,7 +314,7 @@ const MainApp = ({ isGoogleLoaded }) => {
 
         // Clean up shadow ROI
         shadowROI.delete();
-        gray.delete();
+        grayShadow.delete();
 
         return pitch;
       });
@@ -285,7 +324,9 @@ const MainApp = ({ isGoogleLoaded }) => {
       hsv.delete();
       low.delete();
       high.delete();
-      mask.delete();
+      colorMask.delete();
+      edgeMask.delete();
+      combinedMask.delete();
       kernel.delete();
       contours.delete();
       hierarchy.delete();
@@ -606,5 +647,3 @@ const App = () => {
 };
 
 export default App;
-	
-
