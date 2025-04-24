@@ -13,6 +13,8 @@ const Login = () => {
       console.log('Sending login request:', { username, password });
       const response = await api.post('/login', { username, password });
       console.log('Full login response:', response);
+      localStorage.setItem('token', response.data.token); // Store the token in local storage
+      console.log('Stored token in local storage:', response.data.token); // Add logging
       navigate('/');
     } catch (error) {
       console.error('Login error details:', error);
