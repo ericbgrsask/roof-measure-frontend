@@ -153,24 +153,21 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV);
 
-      // Define a color range for roofs (e.g., typical roof colors in HSV)
-      // Adjust these values based on testing
+      // Define a broader color range for roofs (e.g., typical roof colors in HSV)
       // eslint-disable-next-line no-undef
-      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 50, 50, 0]);
+      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 20, 20, 0]); // Broadened range
       // eslint-disable-next-line no-undef
-      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 255, 255]);
+      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 180, 255]); // Adjusted for lighter roofs
       // eslint-disable-next-line no-undef
       const mask = new cv.Mat();
       // eslint-disable-next-line no-undef
       cv.inRange(hsv, low, high, mask);
 
-      // Morphological operations to clean up the mask
+      // Morphological operations to clean up the mask (less aggressive)
       // eslint-disable-next-line no-undef
-      const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+      const kernel = cv.Mat.ones(3, 3, cv.CV_8U); // Smaller kernel
       // eslint-disable-next-line no-undef
-      cv.morphologyEx(mask, mask, cv.MORPH_OPEN, kernel);
-      // eslint-disable-next-line no-undef
-      cv.morphologyEx(mask, mask, cv.MORPH_CLOSE, kernel);
+      cv.morphologyEx(mask, mask, cv.MORPH_OPEN, kernel); // Only MORPH_OPEN to avoid merging
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -179,6 +176,15 @@ const MainApp = ({ isGoogleLoaded }) => {
       const hierarchy = new cv.Mat();
       // eslint-disable-next-line no-undef
       cv.findContours(mask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      // Log contour information for debugging
+      console.log('Number of contours found:', contours.size());
+      for (let i = 0; i < contours.size(); i++) {
+        const contour = contours.get(i);
+        // eslint-disable-next-line no-undef
+        const area = cv.contourArea(contour);
+        console.log(`Contour ${i + 1} area:`, area);
+      }
 
       // Use canvas dimensions for conversion
       const imgHeight = canvas.height;
@@ -196,7 +202,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         const contour = contours.get(i);
         // eslint-disable-next-line no-undef
         const area = cv.contourArea(contour);
-        if (area < 500) continue; // Adjust minimum area threshold
+        if (area < 200) continue; // Lowered minimum area threshold
 
         // Simplify contour using Douglas-Peucker algorithm for straight lines
         // eslint-disable-next-line no-undef
@@ -244,7 +250,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
 
         // Define a region outside the bounding box to look for shadows (e.g., below the roof)
-        const shadowRegionHeight = 20; // Pixels to extend below the roof
+        const shadowRegionHeight = 30;
         const shadowROI = gray.roi({
           x: Math.max(0, minX),
           y: Math.max(0, maxY),
@@ -600,3 +606,5 @@ const App = () => {
 };
 
 export default App;
+	
+
