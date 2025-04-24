@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-route
 import { GoogleMap, LoadScript, Polygon, OverlayView, Polyline } from '@react-google-maps/api';
 import api from './api'; // Import the Axios instance
 import html2canvas from 'html2canvas';
+import * as tf from '@tensorflow/tfjs';
 import Login from './Login';
 import Register from './Register';
 import ProtectedRoute from './ProtectedRoute';
@@ -154,11 +155,12 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV);
 
-      // Define a broader color range for roofs
+      // Define a broader color range for roofs (targeting gray roofs)
+      // Gray colors typically have low saturation and medium value
       // eslint-disable-next-line no-undef
-      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 10, 10, 0]); // Even broader range
+      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 0, 50, 0]); // Low saturation, medium value
       // eslint-disable-next-line no-undef
-      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 150, 255]); // Adjusted for lighter roofs
+      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 50, 150, 255]); // Adjusted for gray roofs
       // eslint-disable-next-line no-undef
       const colorMask = new cv.Mat();
       // eslint-disable-next-line no-undef
@@ -180,16 +182,27 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       cv.GaussianBlur(gray, gray, { width: 5, height: 5 }, 0, 0, cv.BORDER_DEFAULT);
 
-      // Apply Canny edge detection
+      // Apply Canny edge detection with adjusted thresholds
       // eslint-disable-next-line no-undef
       const edgeMask = new cv.Mat();
       // eslint-disable-next-line no-undef
-      cv.Canny(gray, edgeMask, 30, 100, 3);
+      cv.Canny(gray, edgeMask, 20, 80, 3); // Lowered thresholds to capture more edges
 
       // Log the number of non-zero pixels in the edge mask
       // eslint-disable-next-line no-undef
       const nonZeroEdge = cv.countNonZero(edgeMask);
       console.log('Non-zero pixels in edge mask:', nonZeroEdge);
+
+      // Dilate edges to connect broken lines
+      // eslint-disable-next-line no-undef
+      const kernelDilate = cv.Mat.ones(3, 3, cv.CV_8U);
+      // eslint-disable-next-line no-undef
+      cv.dilate(edgeMask, edgeMask, kernelDilate);
+
+      // Log the number of non-zero pixels after dilation
+      // eslint-disable-next-line no-undef
+      const nonZeroEdgeDilated = cv.countNonZero(edgeMask);
+      console.log('Non-zero pixels in edge mask after dilation:', nonZeroEdgeDilated);
 
       // Combine color and edge masks (logical OR)
       // eslint-disable-next-line no-undef
@@ -204,9 +217,9 @@ const MainApp = ({ isGoogleLoaded }) => {
 
       // Morphological operations to clean up the mask (less aggressive)
       // eslint-disable-next-line no-undef
-      const kernel = cv.Mat.ones(3, 3, cv.CV_8U); // Smaller kernel
+      const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
       // eslint-disable-next-line no-undef
-      cv.morphologyEx(combinedMask, combinedMask, cv.MORPH_OPEN, kernel); // Only MORPH_OPEN to avoid merging
+      cv.morphologyEx(combinedMask, combinedMask, cv.MORPH_OPEN, kernel);
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -241,7 +254,7 @@ const MainApp = ({ isGoogleLoaded }) => {
         const contour = contours.get(i);
         // eslint-disable-next-line no-undef
         const area = cv.contourArea(contour);
-        if (area < 100) continue; // Further lowered minimum area threshold
+        if (area < 100) continue; // Minimum area threshold
 
         // Simplify contour using Douglas-Peucker algorithm for straight lines
         // eslint-disable-next-line no-undef
@@ -328,6 +341,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       edgeMask.delete();
       combinedMask.delete();
       kernel.delete();
+      kernelDilate.delete();
       contours.delete();
       hierarchy.delete();
 
