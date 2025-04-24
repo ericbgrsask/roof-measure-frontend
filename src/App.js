@@ -146,41 +146,31 @@ const MainApp = ({ isGoogleLoaded }) => {
 
       // eslint-disable-next-line no-undef
       const src = cv.imread(img);
+
+      // Convert to HSV for color-based segmentation
       // eslint-disable-next-line no-undef
-      cv.cvtColor(src, src, cv.COLOR_RGBA2RGB); // Convert to RGB for TensorFlow.js
-
-      // Use canvas dimensions for conversion
-      const imgHeight = canvas.height;
-      const imgWidth = canvas.width;
-
-      // Convert OpenCV Mat to TensorFlow.js tensor
-      const imgData = src.data;
-      const tensor = tf.tensor3d(imgData, [imgHeight, imgWidth, 3]);
-
-      // Normalize the tensor (scale pixel values to [0, 1])
-      const normalizedTensor = tensor.div(255.0);
-
-      // Placeholder for semantic segmentation (roof detection)
-      // In a real implementation, load a pre-trained U-Net model for roof segmentation
-      // For now, we'll use OpenCV.js with enhanced preprocessing
+      const hsv = new cv.Mat();
       // eslint-disable-next-line no-undef
-      const gray = new cv.Mat();
-      // eslint-disable-next-line no-undef
-      cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+      cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV);
 
-      // Apply Gaussian blur to reduce noise
+      // Define a color range for roofs (e.g., typical roof colors in HSV)
+      // Adjust these values based on testing
       // eslint-disable-next-line no-undef
-      cv.GaussianBlur(gray, gray, { width: 5, height: 5 }, 0, 0, cv.BORDER_DEFAULT);
-
-      // Apply adaptive thresholding to segment the roof
+      const low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [0, 50, 50, 0]);
       // eslint-disable-next-line no-undef
-      cv.adaptiveThreshold(gray, gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+      const high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [180, 255, 255, 255]);
+      // eslint-disable-next-line no-undef
+      const mask = new cv.Mat();
+      // eslint-disable-next-line no-undef
+      cv.inRange(hsv, low, high, mask);
 
-      // Morphological operations to improve segmentation
+      // Morphological operations to clean up the mask
       // eslint-disable-next-line no-undef
       const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
       // eslint-disable-next-line no-undef
-      cv.morphologyEx(gray, gray, cv.MORPH_CLOSE, kernel);
+      cv.morphologyEx(mask, mask, cv.MORPH_OPEN, kernel);
+      // eslint-disable-next-line no-undef
+      cv.morphologyEx(mask, mask, cv.MORPH_CLOSE, kernel);
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -188,7 +178,11 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       const hierarchy = new cv.Mat();
       // eslint-disable-next-line no-undef
-      cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      cv.findContours(mask, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      // Use canvas dimensions for conversion
+      const imgHeight = canvas.height;
+      const imgWidth = canvas.width;
 
       // Process contours to find roof sections
       const roofSections = [];
@@ -225,21 +219,70 @@ const MainApp = ({ isGoogleLoaded }) => {
         approx.delete();
       }
 
-      // Estimate pitch using shadow analysis (simplified for now)
-      const pitches = roofSections.map(() => {
-        // Placeholder: Use shadow length and sun angle to estimate pitch
-        // For now, return a default pitch; we'll refine this later
-        return '4/12';
+      // Estimate pitch using shadow analysis
+      const pitches = roofSections.map(section => {
+        // Convert section points back to pixel coordinates for shadow analysis
+        const pixelPoints = section.map(point => {
+          const x = ((point.lng - sw.lng()) / lngRange) * imgWidth;
+          const y = (1 - (point.lat - sw.lat()) / latRange) * imgHeight;
+          return { x, y };
+        });
+
+        // Find the bounding box of the section
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        pixelPoints.forEach(point => {
+          minX = Math.min(minX, point.x);
+          maxX = Math.max(maxX, point.x);
+          minY = Math.min(minY, point.y);
+          maxY = Math.max(maxY, point.y);
+        });
+
+        // Look for shadows by analyzing intensity in the grayscale image
+        // eslint-disable-next-line no-undef
+        const gray = new cv.Mat();
+        // eslint-disable-next-line no-undef
+        cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+
+        // Define a region outside the bounding box to look for shadows (e.g., below the roof)
+        const shadowRegionHeight = 20; // Pixels to extend below the roof
+        const shadowROI = gray.roi({
+          x: Math.max(0, minX),
+          y: Math.max(0, maxY),
+          width: Math.min(imgWidth - minX, maxX - minX),
+          height: Math.min(shadowRegionHeight, imgHeight - maxY)
+        });
+
+        // Calculate average intensity in the shadow region
+        // eslint-disable-next-line no-undef
+        const mean = cv.mean(shadowROI);
+        const avgIntensity = mean[0]; // Grayscale intensity (0-255)
+
+        // Simple pitch estimation: darker shadows (lower intensity) may indicate steeper pitch
+        let pitch;
+        if (avgIntensity < 50) {
+          pitch = '6/12'; // Steeper pitch
+        } else if (avgIntensity < 100) {
+          pitch = '4/12'; // Medium pitch
+        } else {
+          pitch = '2/12'; // Shallow pitch
+        }
+
+        // Clean up shadow ROI
+        shadowROI.delete();
+        gray.delete();
+
+        return pitch;
       });
 
       // Clean up OpenCV Mats
       src.delete();
-      gray.delete();
+      hsv.delete();
+      low.delete();
+      high.delete();
+      mask.delete();
       kernel.delete();
       contours.delete();
       hierarchy.delete();
-      tensor.dispose();
-      normalizedTensor.dispose();
 
       if (roofSections.length > 0) {
         setPolygons(roofSections);
@@ -490,7 +533,7 @@ const MainApp = ({ isGoogleLoaded }) => {
                 fillOpacity: '0.5',
                 strokeColor: 'blue',
                 strokeOpacity: '0.8',
-                strokeWeight: '2',
+                strokeWeight: 2,
               }}
             />
           )}
