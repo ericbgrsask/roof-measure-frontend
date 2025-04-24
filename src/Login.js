@@ -23,7 +23,7 @@ const Login = () => {
       console.log('Stored token in local storage:', token);
       navigate('/');
     } catch (error) {
-      console.error('Login error details:', error);
+      console.error('Login error details:', error.response ? error.response.data : error.message);
       alert('Login failed. Please check your credentials and try again.');
     }
   };
@@ -60,3 +60,4 @@ const Login = () => {
 };
 
 export default Login;
+
