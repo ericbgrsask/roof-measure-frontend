@@ -126,6 +126,11 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
 
+    if (!window.cv) {
+      alert('OpenCV.js is not loaded. Please try again later.');
+      return;
+    }
+
     try {
       // Capture the map screenshot
       const canvas = await html2canvas(mapContainerRef.current);
@@ -139,18 +144,25 @@ const MainApp = ({ isGoogleLoaded }) => {
         img.onload = resolve;
       });
 
+      // eslint-disable-next-line no-undef
       const src = cv.imread(img);
+      // eslint-disable-next-line no-undef
       const dst = new cv.Mat();
 
       // Convert to grayscale
+      // eslint-disable-next-line no-undef
       cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY);
 
       // Apply Canny edge detection
+      // eslint-disable-next-line no-undef
       cv.Canny(src, dst, 50, 150, 3);
 
       // Find contours
+      // eslint-disable-next-line no-undef
       const contours = new cv.MatVector();
+      // eslint-disable-next-line no-undef
       const hierarchy = new cv.Mat();
+      // eslint-disable-next-line no-undef
       cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
       // Process contours to find roof sections
@@ -165,6 +177,7 @@ const MainApp = ({ isGoogleLoaded }) => {
 
       for (let i = 0; i < contours.size(); i++) {
         const contour = contours.get(i);
+        // eslint-disable-next-line no-undef
         const area = cv.contourArea(contour);
         if (area < 1000) continue; // Ignore small contours
 
