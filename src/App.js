@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
-import { GoogleMap, LoadScript, Polygon, OverlayView } from '@react-google-maps/api';
+import { GoogleMap, LoadScript, Polygon, OverlayView, Polyline } from '@react-google-maps/api';
 import api from './api'; // Import the Axios instance
 import html2canvas from 'html2canvas';
 import Login from './Login';
@@ -31,6 +31,7 @@ const MainApp = ({ isGoogleLoaded }) => {
   const [center, setCenter] = useState(initialCenter);
   const [csrfToken, setCsrfToken] = useState(null);
   const [pitchInputs, setPitchInputs] = useState([]); // Store pitch for each polygon
+  const [buildingFootprints, setBuildingFootprints] = useState([]); // Store building footprints
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -38,7 +39,11 @@ const MainApp = ({ isGoogleLoaded }) => {
   useEffect(() => {
     const fetchCsrfToken = async () => {
       try {
-        const response = await api.get('/csrf-token');
+        const response = await api.get('/csrf-token', {
+          headers: {
+            'User-Id': localStorage.getItem('userId') || 'anonymous' // Pass user ID for CSRF token mapping
+          }
+        });
         setCsrfToken(response.data.csrfToken);
         console.log('Fetched CSRF token:', response.data.csrfToken);
       } catch (error) {
@@ -103,6 +108,50 @@ const MainApp = ({ isGoogleLoaded }) => {
       console.error('Error during geocoding:', error);
       alert('An error occurred while fetching the address. Please try again.');
     }
+  };
+
+  const fetchBuildingFootprints = () => {
+    if (!isGoogleLoaded || !window.google || !window.google.maps) {
+      alert('Google Maps API not loaded. Please try again.');
+      return;
+    }
+
+    if (!center.lat || !center.lng) {
+      alert('Please search for an address first.');
+      return;
+    }
+
+    const placesService = new window.google.maps.places.PlacesService(mapRef.current);
+    placesService.nearbySearch(
+      {
+        location: center,
+        radius: 50, // Search within 50 meters
+        type: 'premise' // Look for buildings
+      },
+      (results, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+          const building = results[0];
+          if (building.geometry && building.geometry.viewport) {
+            const bounds = building.geometry.viewport;
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            const footprint = [
+              { lat: ne.lat(), lng: ne.lng() },
+              { lat: ne.lat(), lng: sw.lng() },
+              { lat: sw.lat(), lng: sw.lng() },
+              { lat: sw.lat(), lng: ne.lng() }
+            ];
+            setBuildingFootprints([footprint]);
+            setPolygons([footprint]);
+            setPitchInputs(['3/12']); // Default pitch for the detected footprint
+          } else {
+            alert('No building footprint found for this location.');
+          }
+        } else {
+          alert('No buildings found at this location.');
+        }
+      }
+    );
   };
 
   const handleAddressKeyPress = (event) => {
@@ -225,7 +274,11 @@ const MainApp = ({ isGoogleLoaded }) => {
 
   const handleLogout = async () => {
     try {
-      const response = await api.get('/csrf-token');
+      const response = await api.get('/csrf-token', {
+        headers: {
+          'User-Id': localStorage.getItem('userId') || 'anonymous'
+        }
+      });
       const freshCsrfToken = response.data.csrfToken;
       console.log('Sending CSRF token for logout:', freshCsrfToken);
       await api.post('/logout', {}, {
@@ -233,9 +286,13 @@ const MainApp = ({ isGoogleLoaded }) => {
           'X-CSRF-Token': freshCsrfToken
         }
       });
+      localStorage.removeItem('token'); // Clear the token on logout
+      localStorage.removeItem('userId');
       navigate('/login');
     } catch (error) {
       console.error('Error logging out:', error);
+      localStorage.removeItem('token'); // Clear the token even if logout fails
+      localStorage.removeItem('userId');
       navigate('/login');
     }
   };
@@ -270,6 +327,12 @@ const MainApp = ({ isGoogleLoaded }) => {
           >
             Search
           </button>
+          <button
+            onClick={fetchBuildingFootprints}
+            style={{ marginLeft: '10px', padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+          >
+            Detect Roof
+          </button>
         </div>
       </div>
       <div ref={mapContainerRef}>
@@ -289,8 +352,8 @@ const MainApp = ({ isGoogleLoaded }) => {
               <Polygon
                 paths={poly}
                 options={{
-                  fillColor: 'blue',
-                  fillOpacity: '0.35',
+                  fillColor: 'gray',
+                  fillOpacity: '0.5',
                   strokeColor: 'blue',
                   strokeOpacity: '0.8',
                   strokeWeight: 2,
@@ -303,10 +366,10 @@ const MainApp = ({ isGoogleLoaded }) => {
               >
                 <div
                   style={{
-                    background: 'white',
-                    border: '1px solid #ccc',
-                    padding: '5px',
-                    fontSize: '14px',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    border: '1px solid #000',
+                    padding: '8px',
+                    fontSize: '16px',
                     fontWeight: 'bold',
                     textAlign: 'center',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
@@ -323,8 +386,8 @@ const MainApp = ({ isGoogleLoaded }) => {
             <Polygon
               paths={currentPoints}
               options={{
-                fillColor: 'blue',
-                fillOpacity: '0.35',
+                fillColor: 'gray',
+                fillOpacity: '0.5',
                 strokeColor: 'blue',
                 strokeOpacity: '0.8',
                 strokeWeight: 2,
@@ -332,6 +395,11 @@ const MainApp = ({ isGoogleLoaded }) => {
             />
           )}
         </GoogleMap>
+      </div>
+      <div style={{ padding: '10px', border: '1px solid #ccc', margin: '10px 0', background: '#f9f9f9' }}>
+        <h3>Legend</h3>
+        <p><strong>Area (SQFT)</strong>: Square footage of the roof section.</p>
+        <p><strong>Pitch (e.g., 3/12)</strong>: Roof pitch, expressed as rise/run.</p>
       </div>
       <button onClick={finishPolygon}>Finish Section</button>
       <button onClick={saveProject}>Save Project</button>
