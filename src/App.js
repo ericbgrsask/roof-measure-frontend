@@ -149,10 +149,12 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       cv.cvtColor(src, src, cv.COLOR_RGBA2RGB); // Convert to RGB for TensorFlow.js
 
+      // Use canvas dimensions for conversion
+      const imgHeight = canvas.height;
+      const imgWidth = canvas.width;
+
       // Convert OpenCV Mat to TensorFlow.js tensor
       const imgData = src.data;
-      const imgHeight = src.rows;
-      const imgWidth = src.cols;
       const tensor = tf.tensor3d(imgData, [imgHeight, imgWidth, 3]);
 
       // Normalize the tensor (scale pixel values to [0, 1])
@@ -160,15 +162,25 @@ const MainApp = ({ isGoogleLoaded }) => {
 
       // Placeholder for semantic segmentation (roof detection)
       // In a real implementation, load a pre-trained U-Net model for roof segmentation
-      // For now, we'll simulate roof detection using OpenCV.js as a fallback
+      // For now, we'll use OpenCV.js with enhanced preprocessing
       // eslint-disable-next-line no-undef
       const gray = new cv.Mat();
       // eslint-disable-next-line no-undef
       cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
 
+      // Apply Gaussian blur to reduce noise
+      // eslint-disable-next-line no-undef
+      cv.GaussianBlur(gray, gray, { width: 5, height: 5 }, 0, 0, cv.BORDER_DEFAULT);
+
       // Apply adaptive thresholding to segment the roof
       // eslint-disable-next-line no-undef
       cv.adaptiveThreshold(gray, gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
+
+      // Morphological operations to improve segmentation
+      // eslint-disable-next-line no-undef
+      const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+      // eslint-disable-next-line no-undef
+      cv.morphologyEx(gray, gray, cv.MORPH_CLOSE, kernel);
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -185,8 +197,6 @@ const MainApp = ({ isGoogleLoaded }) => {
       const sw = mapBounds.getSouthWest();
       const latRange = ne.lat() - sw.lat();
       const lngRange = ne.lng() - sw.lng();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
 
       for (let i = 0; i < contours.size(); i++) {
         const contour = contours.get(i);
@@ -225,6 +235,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       // Clean up OpenCV Mats
       src.delete();
       gray.delete();
+      kernel.delete();
       contours.delete();
       hierarchy.delete();
       tensor.dispose();
@@ -479,7 +490,7 @@ const MainApp = ({ isGoogleLoaded }) => {
                 fillOpacity: '0.5',
                 strokeColor: 'blue',
                 strokeOpacity: '0.8',
-                strokeWeight: 2,
+                strokeWeight: '2',
               }}
             />
           )}
