@@ -13,8 +13,13 @@ const Login = () => {
       console.log('Sending login request:', { username, password });
       const response = await api.post('/login', { username, password });
       console.log('Full login response:', response);
-      localStorage.setItem('token', response.data.token); // Store the token in local storage
-      console.log('Stored token in local storage:', response.data.token); // Add logging
+      console.log('Response data:', response.data); // Add logging
+      const token = response.data.token; // Ensure we access the token correctly
+      if (!token) {
+        throw new Error('Token not found in response');
+      }
+      localStorage.setItem('token', token); // Store the token in local storage
+      console.log('Stored token in local storage:', token); // Add logging
       navigate('/');
     } catch (error) {
       console.error('Login error details:', error);
@@ -54,3 +59,4 @@ const Login = () => {
 };
 
 export default Login;
+
