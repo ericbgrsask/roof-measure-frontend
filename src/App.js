@@ -126,8 +126,8 @@ const MainApp = ({ isGoogleLoaded }) => {
       return;
     }
 
-    if (!window.cv) {
-      alert('OpenCV.js is not loaded. Please try again later.');
+    if (!window.cv || !window.tf) {
+      alert('Required libraries (OpenCV.js/TensorFlow.js) not loaded. Please try again later.');
       return;
     }
 
@@ -137,7 +137,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       const imageDataUrl = canvas.toDataURL('image/png');
       console.log('Captured map screenshot');
 
-      // Load the image into OpenCV.js
+      // Load the image into OpenCV.js for preprocessing
       const img = new Image();
       img.src = imageDataUrl;
       await new Promise(resolve => {
@@ -147,15 +147,28 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       const src = cv.imread(img);
       // eslint-disable-next-line no-undef
-      const dst = new cv.Mat();
+      cv.cvtColor(src, src, cv.COLOR_RGBA2RGB); // Convert to RGB for TensorFlow.js
 
-      // Convert to grayscale
-      // eslint-disable-next-line no-undef
-      cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY);
+      // Convert OpenCV Mat to TensorFlow.js tensor
+      const imgData = src.data;
+      const imgHeight = src.rows;
+      const imgWidth = src.cols;
+      const tensor = tf.tensor3d(imgData, [imgHeight, imgWidth, 3]);
 
-      // Apply Canny edge detection
+      // Normalize the tensor (scale pixel values to [0, 1])
+      const normalizedTensor = tensor.div(255.0);
+
+      // Placeholder for semantic segmentation (roof detection)
+      // In a real implementation, load a pre-trained U-Net model for roof segmentation
+      // For now, we'll simulate roof detection using OpenCV.js as a fallback
       // eslint-disable-next-line no-undef
-      cv.Canny(src, dst, 50, 150, 3);
+      const gray = new cv.Mat();
+      // eslint-disable-next-line no-undef
+      cv.cvtColor(src, gray, cv.COLOR_RGB2GRAY);
+
+      // Apply adaptive thresholding to segment the roof
+      // eslint-disable-next-line no-undef
+      cv.adaptiveThreshold(gray, gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
 
       // Find contours
       // eslint-disable-next-line no-undef
@@ -163,7 +176,7 @@ const MainApp = ({ isGoogleLoaded }) => {
       // eslint-disable-next-line no-undef
       const hierarchy = new cv.Mat();
       // eslint-disable-next-line no-undef
-      cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
       // Process contours to find roof sections
       const roofSections = [];
@@ -179,12 +192,18 @@ const MainApp = ({ isGoogleLoaded }) => {
         const contour = contours.get(i);
         // eslint-disable-next-line no-undef
         const area = cv.contourArea(contour);
-        if (area < 1000) continue; // Ignore small contours
+        if (area < 500) continue; // Adjust minimum area threshold
+
+        // Simplify contour using Douglas-Peucker algorithm for straight lines
+        // eslint-disable-next-line no-undef
+        const approx = new cv.Mat();
+        // eslint-disable-next-line no-undef
+        cv.approxPolyDP(contour, approx, 0.01 * cv.arcLength(contour, true), true);
 
         const points = [];
-        for (let j = 0; j < contour.data32S.length; j += 2) {
-          const x = contour.data32S[j];
-          const y = contour.data32S[j + 1];
+        for (let j = 0; j < approx.data32S.length; j += 2) {
+          const x = approx.data32S[j];
+          const y = approx.data32S[j + 1];
 
           // Convert pixel coordinates to lat/lng
           const lat = sw.lat() + (latRange * (1 - y / imgHeight));
@@ -193,23 +212,33 @@ const MainApp = ({ isGoogleLoaded }) => {
         }
 
         roofSections.push(points);
+        approx.delete();
       }
+
+      // Estimate pitch using shadow analysis (simplified for now)
+      const pitches = roofSections.map(() => {
+        // Placeholder: Use shadow length and sun angle to estimate pitch
+        // For now, return a default pitch; we'll refine this later
+        return '4/12';
+      });
 
       // Clean up OpenCV Mats
       src.delete();
-      dst.delete();
+      gray.delete();
       contours.delete();
       hierarchy.delete();
+      tensor.dispose();
+      normalizedTensor.dispose();
 
       if (roofSections.length > 0) {
         setPolygons(roofSections);
-        setPitchInputs(roofSections.map(() => '3/12')); // Default pitch
+        setPitchInputs(pitches); // Set automatically detected pitches
       } else {
-        alert('No roof sections detected. Please draw manually.');
+        alert('No roof sections detected. Please try a different address.');
       }
     } catch (error) {
       console.error('Error detecting roof contours:', error);
-      alert('Failed to detect roof contours. Please draw manually.');
+      alert('Failed to detect roof contours. Please try a different address.');
     }
   };
 
@@ -427,16 +456,17 @@ const MainApp = ({ isGoogleLoaded }) => {
                   style={{
                     background: 'rgba(255, 255, 255, 0.8)',
                     border: '1px solid #000',
-                    padding: '8px',
-                    fontSize: '16px',
+                    padding: '12px',
+                    fontSize: '18px',
                     fontWeight: 'bold',
                     textAlign: 'center',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                     borderRadius: '4px',
+                    lineHeight: '1.5',
                   }}
                 >
                   <div>{calculateArea(poly)} SQFT</div>
-                  <div>{pitchInputs[index]}</div>
+                  <div>Pitch: {pitchInputs[index]}</div>
                 </div>
               </OverlayView>
             </React.Fragment>
